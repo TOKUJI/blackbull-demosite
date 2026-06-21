@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "blackbull-demo"
+version = "0.1.0"
+description = "Live demo site for the BlackBull ASGI framework"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "blackbull",
+    "blackbull-htcpcp",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "blackbull[testing]",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
