@@ -23,4 +23,7 @@ Thumbs.db
 
 # Project-specific
 *.log
+logs/
 .pytest_cache/
+*.pem
+planning/

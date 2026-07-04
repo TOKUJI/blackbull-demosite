@@ -21,6 +21,6 @@ fi
 
 echo "Starting BlackBull demo..."
 cd "${APP_DIR}"
-nohup .venv/bin/python -m blackbull_demo > /dev/null 2>&1 &
+nohup .venv/bin/blackbull blackbull_demo.app:app > /dev/null 2>&1 &
 echo $! > "${PID_FILE}"
 echo "Started with PID: $(cat ${PID_FILE})"

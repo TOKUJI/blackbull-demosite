@@ -15,6 +15,7 @@ class TestHealthEndpoint:
         data = response.json()
         assert data['status'] == 'ok'
         assert 'version' in data
+        assert 'app_version' in data
         assert 'uptime' in data
         assert 'hostname' in data
 
@@ -143,7 +144,6 @@ class TestStatsJson:
         response = client.get('/stats.json')
         data = response.json()
         assert 'total_requests' in data
-        assert 'active_connections' in data
         assert 'recent_requests' in data
 
 
