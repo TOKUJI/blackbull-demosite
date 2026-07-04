@@ -21,6 +21,8 @@ fi
 
 echo "Starting BlackBull demo..."
 cd "${APP_DIR}"
-nohup .venv/bin/blackbull blackbull_demo.app:app --bind 127.0.0.1:8000 > /dev/null 2>&1 &
+BIND_IP="${IP:-::}"
+BIND_PORT="${PORT:-8000}"
+nohup .venv/bin/blackbull blackbull_demo.app:app --bind "[${BIND_IP}]:${BIND_PORT}" > /dev/null 2>&1 &
 echo $! > "${PID_FILE}"
 echo "Started with PID: $(cat ${PID_FILE})"
