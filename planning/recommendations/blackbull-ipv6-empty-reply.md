@@ -68,13 +68,63 @@ curl http://[::1]:8100/
   the debug output is absent — the request never reaches the ASGI
   application layer.
 
-## Hypothesis
+## Root Cause
 
-The issue is likely in BlackBull's **connection actor / protocol
-detection layer**.  The TCP connection is accepted on the IPv6 socket,
-but the HTTP/1.1 request-line parser (`readuntil(b'\r\n')`) may be
-reading from the wrong transport or encountering a framing issue
-specific to the IPv6 data path.
+**File:** `blackbull/server/http1_actor.py`, Host header parsing (~L685)
+
+```python
+# Current code (broken for IPv6):
+if headers.getlist(b'host'):
+    parts = headers.get(b'host').split(b':')
+    host = parts[0]
+    port = int(parts[1]) if len(parts) > 1 else _DEFAULT_PORT
+    scope['server'] = [host.decode('utf-8'), port]
+```
+
+`b'[::1]:8100'.split(b':')` produces `[b'[', b'', b'1]', b'8100']`.
+`int(b'')` raises `ValueError`.
+
+This `ValueError` is **not** caught by `HTTP1Actor.run()` (which only
+handles `HeaderTooLargeError`, `BadRequestError`, and
+`NotImplementedFramingError`).  It propagates to
+`ConnectionActor.run()`'s generic `except Exception`, which silently
+closes the transport with `await self._writer.close()`.  No HTTP
+response bytes are ever written — hence "Empty reply from server."
+
+cf. RFC 3986 §3.2.2 — IPv6 addresses in URIs use bracket notation:
+`[::1]:port`.
+
+## Proposed Fix
+
+```python
+if headers.getlist(b'host'):
+    host_value = headers.get(b'host')
+    if host_value.startswith(b'['):
+        # IPv6 bracket notation: [::1]:8100
+        close = host_value.find(b']')
+        if close != -1:
+            host = host_value[1:close]
+            port_str = host_value[close + 1:]
+            port = int(port_str[1:]) if port_str.startswith(b':') else _DEFAULT_PORT
+        else:
+            parts = host_value.split(b':')
+            host, port = parts[0], int(parts[1]) if len(parts) > 1 else _DEFAULT_PORT
+    else:
+        # IPv4 / bare hostname
+        parts = host_value.split(b':')
+        host = parts[0]
+        port = int(parts[1]) if len(parts) > 1 else _DEFAULT_PORT
+    scope['server'] = [host.decode('utf-8'), port]
+```
+
+### Secondary: IPv6 address tuple normalization
+
+`server/server.py` `_serve_connection` (~L322) normalizes AF_UNIX
+addresses to 2-tuples but leaves AF_INET6 4-tuples
+`(host, port, flowinfo, scope_id)` un-normalized, producing
+non-ASGI-compliant `['::1', port, 0, 0]` in `scope['client']` and
+`scope['server']`.  These should be truncated to 2-tuples per the ASGI
+spec.
 
 ## Impact
 
