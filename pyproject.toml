@@ -20,6 +20,9 @@ dev = [
     "blackbull[testing]",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/blackbull_demo"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
