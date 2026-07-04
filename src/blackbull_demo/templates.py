@@ -1,12 +1,12 @@
 """Inline HTML templates for the BlackBull demo site.
 
-ALL CSS is inlined in ``<style>`` tags.  No external stylesheets, no
-JavaScript frameworks, no CDN resources (except Swagger UI loaded by
-BlackBull's built-in ``enable_openapi()``).
+CSS is served from ``/static/style.css`` via BlackBull's built-in
+static file middleware.  No JavaScript frameworks, no CDN resources
+(except Swagger UI loaded by BlackBull's built-in ``enable_openapi()``).
 
 Design aesthetic: HAProxy-inspired transparency + Caddy-inspired
 terminal look — dark background, monospace stats, clean layout.
-Response size target: < 10 KB.
+Response size target: < 10 KB (HTML only; CSS is cached separately).
 """
 
 from __future__ import annotations
@@ -69,16 +69,44 @@ def render_dashboard(
     uptime_str = _format_uptime(stats['uptime_seconds'])
     avg_ms = stats['avg_response_time_ms']
 
+    # Protocol badge
+    is_h2 = http_version.startswith('HTTP/2')
+    proto_badge_cls = 'proto-h2' if is_h2 else 'proto-h1'
+    proto_label = http_version
+
     # Route rows
     route_rows: List[str] = []
+    _param_demo: dict[str, str] = {'{name}': 'World', '{n:int}': '42'}
+    _htcpcp_headers: dict[str, str] = {
+        'BREW': "'Accept-Additions': 'Cream'",
+        'POST': "'Accept-Additions': 'Cream'",
+    }
     for r in routes:
         method = r.get('method', 'GET')
         path = r.get('path', '/')
         note = r.get('note', '')
         note_html = f' <span class="route-note">({note})</span>' if note else ''
+        if method == 'GET':
+            href = path
+            for param, val in _param_demo.items():
+                href = href.replace(param, val)
+            path_html = f'<a href="{href}">{path}</a>'
+        else:
+            # HTCPCP headers only for /pot routes
+            extra_hdr = ''
+            if path.startswith('/pot'):
+                extra_hdr = _htcpcp_headers.get(method, '')
+            hdr_obj = f'{{{extra_hdr}}}' if extra_hdr else '{}'
+            js = (
+                f"fetch({path!r},{{method:{method!r}"
+                + (f",headers:{hdr_obj}" if extra_hdr else "")
+                + "}).then(r=>r.text()).then(t=>{document.getElementById('bb-resp').textContent=t;refreshStats()})"
+                + ".catch(e=>{document.getElementById('bb-resp').textContent='Error: '+e})"
+            )
+            path_html = f'<span class="route-link" onclick="{js}">{path}</span>'
         route_rows.append(
             f'<tr><td class="method">{method}</td>'
-            f'<td class="path">{path}{note_html}</td></tr>'
+            f'<td class="path">{path_html}{note_html}</td></tr>'
         )
 
     # Recent request rows
@@ -104,62 +132,8 @@ def render_dashboard(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BlackBull Demo</title>
-<style>
-:root {{
-  --bg: #0d1117;
-  --surface: #161b22;
-  --border: #30363d;
-  --text: #c9d1d9;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --green: #3fb950;
-  --red: #f85149;
-  --orange: #d2991d;
-  --font: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
-}}
-*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-body{{
-  background:var(--bg);color:var(--text);font-family:var(--font);
-  font-size:13px;line-height:1.5;padding:20px;max-width:960px;margin:0 auto;
-}}
-h1{{font-size:20px;font-weight:600;margin-bottom:4px}}
-h1 .emoji{{margin-right:6px}}
-h2{{font-size:15px;font-weight:600;margin:20px 0 8px;color:var(--accent)}}
-.subtitle{{color:var(--muted);font-size:12px;margin-bottom:16px}}
-.cards{{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}}
-.card{{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:6px;padding:12px 16px;flex:1;min-width:140px
-}}
-.card-label{{color:var(--muted);font-size:10px;text-transform:uppercase}}
-.card-value{{font-size:18px;font-weight:600;margin-top:2px}}
-.status-dot{{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}}
-.status-dot.online{{background:var(--green)}}
-table{{width:100%;border-collapse:collapse;margin-bottom:12px}}
-th,td{{text-align:left;padding:4px 8px;border-bottom:1px solid var(--border);white-space:nowrap}}
-th{{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:500}}
-td.method{{color:var(--accent);font-weight:600;min-width:48px}}
-td.path{{font-family:var(--font)}}
-td.time{{color:var(--muted)}}
-td.status-ok{{color:var(--green)}}
-td.status-err{{color:var(--red)}}
-td.proto,td.elapsed{{color:var(--muted)}}
-.route-note{{color:var(--orange);font-weight:400}}
-.conn-info{{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px;margin-bottom:16px}}
-.conn-info dl{{display:grid;grid-template-columns:120px 1fr;gap:4px 12px}}
-.conn-info dt{{color:var(--muted);font-size:11px}}
-.conn-info dd{{font-size:13px}}
-.stats-summary{{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}}
-.stat-item{{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px;flex:1;min-width:120px}}
-.stat-value{{font-size:17px;font-weight:600}}
-.stat-label{{color:var(--muted);font-size:10px;text-transform:uppercase}}
-footer{{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);color:var(--muted);font-size:11px}}
-footer a{{color:var(--accent);text-decoration:none}}
-footer a:hover{{text-decoration:underline}}
-@media (prefers-color-scheme:light){{
-  :root{{--bg:#fff;--surface:#f6f8fa;--border:#d0d7de;--text:#1f2328;--muted:#656d76}}
-}}
-</style>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
@@ -173,7 +147,7 @@ footer a:hover{{text-decoration:underline}}
   </div>
   <div class="card">
     <div class="card-label">Protocol</div>
-    <div class="card-value">{http_version}</div>
+    <div class="card-value {proto_badge_cls}">{proto_label}</div>
   </div>
   <div class="card">
     <div class="card-label">Uptime</div>
@@ -184,8 +158,8 @@ footer a:hover{{text-decoration:underline}}
 <h2>Your Connection</h2>
 <div class="conn-info">
   <dl>
-    <dt>Protocol</dt><dd>{http_version}</dd>
-    <dt>Encryption</dt><dd>TLS (Alwaysdata edge)</dd>
+    <dt>Protocol</dt><dd class="{proto_badge_cls}">{proto_label}</dd>
+    <dt>Encryption</dt><dd>{"TLS (direct — BlackBull ALPN)" if is_h2 else "TLS (Alwaysdata edge — Let's Encrypt)"}</dd>
   </dl>
 </div>
 
@@ -197,10 +171,13 @@ footer a:hover{{text-decoration:underline}}
   </tbody>
 </table>
 
+<h2>Response</h2>
+<pre id="bb-resp" class="resp-area">Click a non-GET route above to see the response here.</pre>
+
 <h2>Recent Requests</h2>
 <table>
   <thead><tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Proto</th><th>Latency</th></tr></thead>
-  <tbody>
+  <tbody id="bb-recent">
     {''.join(req_rows) if req_rows else '<tr><td colspan="6" style="color:var(--muted)">No requests yet.</td></tr>'}
   </tbody>
 </table>
@@ -208,15 +185,11 @@ footer a:hover{{text-decoration:underline}}
 <h2>Statistics</h2>
 <div class="stats-summary">
   <div class="stat-item">
-    <div class="stat-value">{stats['total_requests']:,}</div>
+    <div class="stat-value" id="bb-total">{stats['total_requests']:,}</div>
     <div class="stat-label">Total Requests</div>
   </div>
   <div class="stat-item">
-    <div class="stat-value">{stats['active_connections']}</div>
-    <div class="stat-label">Active Connections</div>
-  </div>
-  <div class="stat-item">
-    <div class="stat-value">{avg_ms:.1f} ms</div>
+    <div class="stat-value" id="bb-avg">{avg_ms:.1f} ms</div>
     <div class="stat-label">Avg Response Time</div>
   </div>
 </div>
@@ -229,6 +202,29 @@ footer a:hover{{text-decoration:underline}}
   <a href="/health">Health</a><br>
   Powered by BlackBull — no uvicorn, no gunicorn, no hypercorn.
 </footer>
+
+<script>
+function refreshStats(){{
+  fetch('/stats.json').then(r=>r.json()).then(d=>{{
+    document.getElementById('bb-total').textContent = d.total_requests.toLocaleString();
+    document.getElementById('bb-avg').textContent = d.avg_response_time_ms.toFixed(1)+' ms';
+    const tb = document.getElementById('bb-recent');
+    const rows = d.recent_requests.slice(0,20);
+    if(rows.length){{
+      tb.innerHTML = rows.map(r=>{{
+        const cls = r.status>=200&&r.status<400?'status-ok':'status-err';
+        let lat;
+        if(r.elapsed_ms<1) lat=(r.elapsed_ms*1000).toFixed(0)+'µs';
+        else if(r.elapsed_ms<1000) lat=r.elapsed_ms.toFixed(1)+'ms';
+        else lat=(r.elapsed_ms/1000).toFixed(2)+'s';
+        return '<tr><td class=time>'+r.time+'</td><td class=method>'+r.method+'</td><td class=path>'+r.path+'</td><td class='+cls+'>'+r.status+'</td><td class=proto>'+r.http_version+'</td><td class=elapsed>'+lat+'</td></tr>';
+      }}).join('');
+    }}else{{
+      tb.innerHTML = '<tr><td colspan=6 style=color:var(--muted)>No requests yet.</td></tr>';
+    }}
+  }});
+}}
+</script>
 
 </body>
 </html>'''  # noqa: E501 (line length for inline HTML is intentional)
