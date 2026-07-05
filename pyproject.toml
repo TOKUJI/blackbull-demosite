@@ -9,7 +9,7 @@ description = "Live demo site for the BlackBull ASGI framework"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "blackbull",
+    "blackbull>=0.48.1",
     "blackbull-htcpcp",
 ]
 
