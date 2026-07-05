@@ -42,9 +42,10 @@ echo "[3/4] Updating dependencies..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
     "cd ${REMOTE_PATH} && .venv/bin/pip install -e ."
 
-# 4. SSH: restart the daemon
-echo "[4/4] Restarting daemon..."
-ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
-    "chmod +x ${REMOTE_PATH}/scripts/restart.sh && ${REMOTE_PATH}/scripts/restart.sh"
+# 4. Restart via Alwaysdata admin panel (User Program auto-manages the process)
+echo "[4/4] Skipping restart — use Alwaysdata admin panel (Web → Sites → Save) to restart."
+# ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
+#     "chmod +x ${REMOTE_PATH}/scripts/restart.sh && ${REMOTE_PATH}/scripts/restart.sh"
 
 echo "=== Deploy complete ==="
+echo "  → Go to Alwaysdata admin → Web → Sites → blackbull.alwaysdata.net → Save to restart."
