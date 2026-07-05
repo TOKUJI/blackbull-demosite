@@ -58,10 +58,12 @@ jobs:
             .venv/bin/pip install -e .
 
             echo "=== Restarting application ==="
-            # Kill the running BlackBull process.
-            # Alwaysdata "User Program" auto-restarts the daemon on exit.
-            pkill -f "blackbull blackbull_demo.app:app" || true
-
+            # Kill the running BlackBull process from a detached background
+            # job.  Direct pkill would cause Alwaysdata to terminate the SSH
+            # session too.  nohup + sleep ensures the SSH session exits
+            # cleanly before the signal is delivered.
+            nohup sh -c 'sleep 1; pkill -f "blackbull blackbull_demo.app:app"' \
+              >/dev/null 2>&1 &
             echo "=== Deploy complete (Alwaysdata will restart the process) ==="
 
   # ------------------------------------------------------------------
