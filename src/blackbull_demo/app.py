@@ -79,7 +79,7 @@ def create_app() -> BlackBull:
         raw_status = d.get('status', 0)
         status = int(raw_status) if raw_status != '-' else 0
         _stats['buf'].append({
-            'time': time.strftime('%H:%M:%S'),
+            'time': time.strftime('%H:%M:%S', time.gmtime()) + ' UTC',
             'method': d.get('method', '?'),
             'path': d.get('path', '/'),
             'status': status,

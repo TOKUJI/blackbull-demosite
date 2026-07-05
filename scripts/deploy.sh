@@ -42,10 +42,11 @@ echo "[3/4] Updating dependencies..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
     "cd ${REMOTE_PATH} && .venv/bin/pip install -e ."
 
-# 4. Restart via Alwaysdata admin panel (User Program auto-manages the process)
-echo "[4/4] Skipping restart — use Alwaysdata admin panel (Web → Sites → Save) to restart."
-# ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
-#     "chmod +x ${REMOTE_PATH}/scripts/restart.sh && ${REMOTE_PATH}/scripts/restart.sh"
+# 4. Restart the application
+echo "[4/4] Restarting application..."
+ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
+    "pkill -f 'blackbull blackbull_demo.app:app' || true"
+# Alwaysdata "User Program" auto-restarts the process on exit.
 
 echo "=== Deploy complete ==="
-echo "  → Go to Alwaysdata admin → Web → Sites → blackbull.alwaysdata.net → Save to restart."
+echo "  → Health check: curl https://${ALWAYSDATA_USER}.alwaysdata.net/health"
