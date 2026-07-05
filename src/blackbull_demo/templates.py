@@ -176,7 +176,7 @@ def render_dashboard(
 
 <h2>Recent Requests</h2>
 <table>
-  <thead><tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Proto</th><th>Latency</th></tr></thead>
+  <thead><tr><th>Time (UTC)</th><th>Method</th><th>Path</th><th>Status</th><th>Proto</th><th>Latency</th></tr></thead>
   <tbody id="bb-recent">
     {''.join(req_rows) if req_rows else '<tr><td colspan="6" style="color:var(--muted)">No requests yet.</td></tr>'}
   </tbody>

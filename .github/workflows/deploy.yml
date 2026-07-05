@@ -1,0 +1,98 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent concurrent deploys — if a new push arrives while a deploy is
+# in progress, cancel the older one.
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------------
+  # Job 1 — Run tests
+  # ------------------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest -v
+
+  # ------------------------------------------------------------------
+  # Job 2 — Deploy to Alwaysdata (requires test success)
+  # ------------------------------------------------------------------
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: success()
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ALWAYSDATA_HOST }}
+          username: ${{ secrets.ALWAYSDATA_USER }}
+          key: ${{ secrets.ALWAYSDATA_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd ~/blackbull-demo
+
+            echo "=== Pulling latest code ==="
+            git pull origin main
+
+            echo "=== Installing dependencies ==="
+            .venv/bin/pip install -e .
+
+            echo "=== Restarting application ==="
+            # Kill the running BlackBull process.
+            # Alwaysdata "User Program" auto-restarts the daemon on exit.
+            pkill -f "blackbull blackbull_demo.app:app" || true
+
+            echo "=== Deploy complete (Alwaysdata will restart the process) ==="
+
+  # ------------------------------------------------------------------
+  # Job 3 — Health check (requires deploy success)
+  # ------------------------------------------------------------------
+  health-check:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: success()
+    steps:
+      - name: Wait for restart
+        run: sleep 5
+
+      - name: Health check with retries
+        run: |
+          DEMO_URL="${{ vars.DEMO_URL || 'https://blackbull.alwaysdata.net' }}"
+          echo "Target: ${DEMO_URL}/health"
+
+          for i in $(seq 1 12); do
+            HTTP_STATUS=$(curl -f -s -o /dev/null -w "%{http_code}" \
+              "${DEMO_URL}/health" 2>&1 || echo "FAIL")
+
+            if [[ "${HTTP_STATUS}" == "200" ]]; then
+              echo "✅ Health check passed (HTTP ${HTTP_STATUS}) after ${i} attempt(s)"
+              exit 0
+            fi
+
+            echo "Attempt ${i}/12: HTTP ${HTTP_STATUS} — retrying in 5s..."
+            sleep 5
+          done
+
+          echo "❌ Health check FAILED after 12 attempts (60s timeout)"
+          exit 1
