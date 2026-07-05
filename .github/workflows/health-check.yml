@@ -21,4 +21,4 @@ jobs:
           fi
           echo "Health check passed (HTTP ${STATUS})"
         env:
-          DEMO_URL: ${{ vars.DEMO_URL || 'https://blackbull-demo.example.com' }}
+          DEMO_URL: ${{ vars.DEMO_URL || 'https://blackbull.alwaysdata.net' }}
