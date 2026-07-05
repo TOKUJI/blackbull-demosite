@@ -24,8 +24,12 @@ fi
 echo "=== Deploying blackbull-demo to Alwaysdata ==="
 echo "Target: ${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}:${REMOTE_PATH}"
 
-# 1. Push latest commits to GitHub
-echo "[1/4] Pushing to GitHub..."
+# 1. Sync main with remote and push
+echo "[1/4] Syncing and pushing main branch..."
+git fetch origin main
+git checkout main
+git pull --ff-only origin main
+git checkout -
 git push origin main
 
 # 2. SSH: pull latest code on Alwaysdata
