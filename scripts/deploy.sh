@@ -42,13 +42,20 @@ echo "[3/4] Updating dependencies..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
     "cd ${REMOTE_PATH} && .venv/bin/pip install -e ."
 
-# 4. Restart the application (detached to avoid SSH session termination)
-echo "[4/4] Restarting application..."
-# Alwaysdata terminates the SSH session when the User Program process dies.
-# Run pkill in a detached background job so the deploy script exits cleanly.
-ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
-    "nohup sh -c 'sleep 1; pkill -f \"blackbull blackbull_demo.app:app\"' >/dev/null 2>&1 &"
-# Alwaysdata "User Program" auto-restarts the process on exit.
+# 4. Restart the service via Alwaysdata API
+echo "[4/4] Restarting service..."
+ALWAYSDATA_API_KEY="${ALWAYSDATA_API_KEY:-}"
+SERVICE_ID="${SERVICE_ID:-26686}"
+if [[ -n "$ALWAYSDATA_API_KEY" ]]; then
+    curl -sS -X POST \
+        -H "Authorization: Bearer ${ALWAYSDATA_API_KEY}" \
+        "https://api.alwaysdata.com/v1/service/${SERVICE_ID}/restart/"
+    echo ""
+    echo "Service restart requested via API."
+else
+    echo "⚠️  Set ALWAYSDATA_API_KEY for automatic restart."
+    echo "   Manual: Advanced > Services > restart in admin panel."
+fi
 
 echo "=== Deploy complete ==="
 echo "  → Health check: curl https://${ALWAYSDATA_USER}.alwaysdata.net/health"
