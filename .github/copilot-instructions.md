@@ -11,6 +11,9 @@ code generation, edit, or suggestion in this project.
 - **Framework:** BlackBull ASGI (imported as `blackbull`)
 - **Server:** BlackBull's built-in server ONLY (`app.run()`). NEVER import or
   suggest `uvicorn`, `hypercorn`, `granian`, `gunicorn`, or any other ASGI server.
+- **Production deployment:** Alwaysdata **Services** (24/7 supervisor) on
+  port 8300, with Apache **reverse proxy** (ProxyPass) from edge TLS :443.
+  See `scripts/run-service.sh` and `scripts/deploy.sh`.
 - **Route registration:** `app.route()` (decorator) — NOT `add_route()`.
 - **Application entry point:** `app.py` — single file, target ≤300 lines.
 - **Template strings:** `templates.py` — inline HTML as Python string

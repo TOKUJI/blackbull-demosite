@@ -13,10 +13,10 @@ dependencies** — no uvicorn, no gunicorn, no hypercorn.
 
 ## Live Demo
 
-- **Dashboard:** [https://blackbull-demo.example.com/](https://blackbull-demo.example.com/)
-- **Health Check:** [https://blackbull-demo.example.com/health](https://blackbull-demo.example.com/health)
-- **Swagger UI:** [https://blackbull-demo.example.com/docs](https://blackbull-demo.example.com/docs)
-- **OpenAPI Spec:** [https://blackbull-demo.example.com/openapi.json](https://blackbull-demo.example.com/openapi.json)
+- **Dashboard:** [https://blackbull.alwaysdata.net/](https://blackbull.alwaysdata.net/)
+- **Health Check:** [https://blackbull.alwaysdata.net/health](https://blackbull.alwaysdata.net/health)
+- **Swagger UI:** [https://blackbull.alwaysdata.net/docs](https://blackbull.alwaysdata.net/docs)
+- **OpenAPI Spec:** [https://blackbull.alwaysdata.net/openapi.json](https://blackbull.alwaysdata.net/openapi.json)
 
 ## Features Demonstrated
 
@@ -49,7 +49,13 @@ python app.py
 Hosted on [Alwaysdata](https://www.alwaysdata.com/) free tier:
 - 256 MB RAM, 1 GB SSD, ¼ CPU
 - Always-on (no sleep), no credit card required
-- Python ASGI support via SSH daemon
+- **Services** (24/7 process supervisor) + **Apache reverse proxy**
+- Edge TLS termination with automatic Let's Encrypt
+
+Architecture:
+```
+Internet → :443 (TLS) → Apache (ProxyPass) → Service :8300 → BlackBull
+```
 
 ## License
 

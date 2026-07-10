@@ -1,23 +1,43 @@
 #!/bin/bash
-# restart.sh — Restart the BlackBull demo daemon on Alwaysdata
+# restart.sh — Restart the BlackBull demo Service on Alwaysdata
 #
-# This script is intended to be run ON the Alwaysdata host.
-# It kills any running BlackBull process; Alwaysdata's "User Program"
-# supervisor auto-restarts the daemon on exit.
+# The app runs as an Alwaysdata *Service* (not User Program).
+# Restart is done via the Alwaysdata API.
 #
-# Usage (on Alwaysdata host):
-#   ./scripts/restart.sh
+# Prerequisites:
+#   - ALWAYSDATA_API_KEY env var (get from https://admin.alwaysdata.com/profile/api/)
+#   - ALWAYSDATA_ACCOUNT env var (your Alwaysdata account name)
+#
+# Usage:
+#   ALWAYSDATA_API_KEY=xxx ALWAYSDATA_ACCOUNT=blackbull ./scripts/restart.sh
+#
+# Or restart manually: Advanced > Services > restart in admin panel.
 #
 set -euo pipefail
 
-echo "=== Restarting BlackBull demo ==="
+ALWAYSDATA_API_KEY="${ALWAYSDATA_API_KEY:-}"
+ALWAYSDATA_ACCOUNT="${ALWAYSDATA_ACCOUNT:-}"
+SERVICE_ID="${SERVICE_ID:-26686}"
 
-# Kill the running BlackBull process from a detached background job.
-# Direct pkill would cause Alwaysdata to terminate this SSH session too.
-# nohup + sleep ensures this script exits cleanly before the signal is delivered.
-nohup sh -c 'sleep 1; pkill -f "blackbull blackbull_demo.app:app"' >/dev/null 2>&1 &
-echo "Sent deferred termination signal — Alwaysdata will restart the process."
+echo "=== Restarting BlackBull demo (Service ${SERVICE_ID}) ==="
 
-# Exit immediately — do not wait for restart verification (the SSH session
-# would be terminated when Alwaysdata kills the User Program process).
-exit 0
+if [[ -z "$ALWAYSDATA_API_KEY" ]]; then
+    echo "⚠️  ALWAYSDATA_API_KEY not set."
+    echo "   Manual: Advanced > Services > restart in admin panel."
+    echo "   Or: set ALWAYSDATA_API_KEY + ALWAYSDATA_ACCOUNT env vars."
+    exit 1
+fi
+
+if [[ -z "$ALWAYSDATA_ACCOUNT" ]]; then
+    echo "Error: ALWAYSDATA_ACCOUNT is not set."
+    exit 1
+fi
+
+# Restart via Alwaysdata API
+curl -sS -X POST \
+    -H "Authorization: Bearer ${ALWAYSDATA_API_KEY}" \
+    "https://api.alwaysdata.com/v1/service/${SERVICE_ID}/restart/"
+
+echo ""
+echo "Service restart requested."
+echo "  → Health check: curl https://${ALWAYSDATA_ACCOUNT}.alwaysdata.net/health"

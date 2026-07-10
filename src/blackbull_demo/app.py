@@ -5,8 +5,9 @@ Uses BlackBull's built-in server — no uvicorn, gunicorn, or hypercorn.
 
 Launch methods::
 
-    # Production (Alwaysdata — edge TLS, plain HTTP to app)
-    blackbull blackbull_demo.app:app --bind :8000
+    # Production (Alwaysdata Services + Apache reverse proxy)
+    # Service on port 8300 → Apache ProxyPass → edge TLS :443
+    blackbull blackbull_demo.app:app --bind '[::]:8300'
 
     # Local dev (HTTP/1.1)
     python -m blackbull_demo.app
@@ -26,7 +27,8 @@ Environment variables:
 
 TLS strategy:
     - **Production:** Alwaysdata edge terminates TLS (Let's Encrypt).
-      BlackBull receives plain HTTP/1.1 on localhost.
+      Apache reverse-proxies to the Service on ``[::]:8300``.
+      BlackBull receives plain HTTP/1.1 on the Services server.
     - **Local dev:** Use ``scripts/gen-cert.sh`` to generate a self-signed
       cert and test BlackBull's built-in HTTP/2 + ALPN stack.
 """
