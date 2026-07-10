@@ -51,20 +51,22 @@ jobs:
             set -e
             cd ~/blackbull-demo
 
+            echo "=== Git status ==="
+            git status --short
+
             echo "=== Pulling latest code ==="
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "=== Installing dependencies ==="
             .venv/bin/pip install -e .
 
-            echo "=== Restarting application ==="
-            # Kill the running BlackBull process from a detached background
-            # job.  Direct pkill would cause Alwaysdata to terminate the SSH
-            # session too.  nohup + sleep ensures the SSH session exits
-            # cleanly before the signal is delivered.
-            nohup sh -c 'sleep 1; pkill -f "blackbull blackbull_demo.app:app"' \
-              >/dev/null 2>&1 &
-            echo "=== Deploy complete (Alwaysdata will restart the process) ==="
+            echo "=== Restarting service via Alwaysdata API ==="
+            curl -sS -X POST \
+              -H "Authorization: Bearer ${{ secrets.ALWAYSDATA_API_KEY }}" \
+              "https://api.alwaysdata.com/v1/service/26686/restart/"
+            echo ""
+            echo "=== Deploy complete ==="
 
   # ------------------------------------------------------------------
   # Job 3 — Health check (requires deploy success)
