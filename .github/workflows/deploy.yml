@@ -68,10 +68,11 @@ jobs:
             # Alwaysdata official method: POST /v1/service/{id}/restart/
             # Services run on separate servers from SSH — pkill/pgrep CANNOT
             # see the service process. The API sends SIGHUP to the supervisor.
-            # Auth: HTTP Basic. Format: "APIKEY account=blackbull:TOKEN"
+            # Auth: HTTP Basic. Raw token as username, empty password.
+            # Bearer is NOT supported ("Only basic Authorization is supported").
             # Ref: https://api.alwaysdata.com/v1/service/doc/
             RESTART_RESPONSE=$(curl -fsS -X POST \
-              --basic --user "APIKEY account=blackbull:${{ secrets.ALWAYSDATA_API_KEY }}" \
+              --basic --user "${{ secrets.ALWAYSDATA_API_KEY }}:" \
               "https://api.alwaysdata.com/v1/service/26686/restart/")
             echo "API response: ${RESTART_RESPONSE}"
             echo "=== Deploy complete ==="

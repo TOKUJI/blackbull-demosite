@@ -47,7 +47,7 @@ echo "[4/4] Restarting service..."
 ALWAYSDATA_API_KEY="${ALWAYSDATA_API_KEY:-}"
 if [[ -n "$ALWAYSDATA_API_KEY" ]]; then
     RESTART_RESPONSE=$(curl -fsS -X POST \
-        --basic --user "APIKEY account=${ALWAYSDATA_USER}:${ALWAYSDATA_API_KEY}" \
+        --basic --user "${ALWAYSDATA_API_KEY}:" \
         "https://api.alwaysdata.com/v1/service/${SERVICE_ID:-26686}/restart/")
     echo "API response: ${RESTART_RESPONSE}"
 else
