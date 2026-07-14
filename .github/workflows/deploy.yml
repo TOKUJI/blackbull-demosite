@@ -61,6 +61,10 @@ jobs:
             echo "=== Installing dependencies ==="
             .venv/bin/pip install --upgrade -e .
 
+            echo "=== Cleaning stale bytecode cache ==="
+            find .venv/lib -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+            find .venv/lib -name '*.pyc' -delete 2>/dev/null || true
+
             echo "=== Verifying BlackBull version ==="
             .venv/bin/python -c 'import blackbull; print(f"blackbull {blackbull.__version__}")'
 

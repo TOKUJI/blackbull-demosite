@@ -37,10 +37,10 @@ echo "[2/4] Pulling latest code on Alwaysdata..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
     "cd ${REMOTE_PATH} && git pull origin main"
 
-# 3. SSH: install/update dependencies
+# 3. SSH: install/update dependencies + clean stale bytecode
 echo "[3/4] Updating dependencies..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
-    "cd ${REMOTE_PATH} && .venv/bin/pip install -e ."
+    "cd ${REMOTE_PATH} && .venv/bin/pip install -e . && find .venv/lib -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null; find .venv/lib -name '*.pyc' -delete 2>/dev/null; echo 'Bytecode cache cleaned'"
 
 # 4. Restart the service via Alwaysdata API
 echo "[4/4] Restarting service..."
