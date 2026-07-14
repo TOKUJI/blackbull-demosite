@@ -45,7 +45,7 @@ ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
 # 4. Restart the service (kill process; supervisor auto-restarts)
 echo "[4/4] Restarting service..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
-    "pkill -f 'blackbull blackbull_demo.app:app' || true"
+    "pkill -f '[b]lackbull blackbull_demo.app:app' || true"
 echo "Signal sent — Alwaysdata Services supervisor will restart the process."
 
 echo "=== Deploy complete ==="
