@@ -68,7 +68,9 @@ jobs:
             # Kill the running BlackBull process.
             # Alwaysdata Services supervisor detects the exit and auto-restarts
             # with the newly installed code (scripts/run-service.sh).
-            pkill -f "blackbull blackbull_demo.app:app" || true
+            # The [b] bracket trick prevents pkill -f from matching its own
+            # command line (and killing the SSH session).
+            pkill -f "[b]lackbull blackbull_demo.app:app" || true
             echo "Signal sent — supervisor will restart the service."
             echo "=== Deploy complete ==="
 
