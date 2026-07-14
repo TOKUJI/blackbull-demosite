@@ -64,20 +64,16 @@ jobs:
             echo "=== Verifying BlackBull version ==="
             .venv/bin/python -c 'import blackbull; print(f"blackbull {blackbull.__version__}")'
 
-            echo "=== Restarting service ==="
-            # Find BlackBull PID and kill it.
-            # Alwaysdata Services supervisor detects the exit and auto-restarts
-            # with the newly installed code (scripts/run-service.sh).
-            # Uses pgrep + kill (two-step) instead of pkill to avoid:
-            # 1. pkill -f self-match (bracket trick is fragile across platforms)
-            # 2. pgrep runs first and exits → its own PID is gone when kill fires
-            PID=$(pgrep -f "blackbull blackbull_demo" | head -1)
-            if [ -n "$PID" ]; then
-              echo "Killing BlackBull PID $PID"
-              kill "$PID" || true
-            else
-              echo "No BlackBull process found — supervisor may already be restarting"
-            fi
+            echo "=== Restarting service via Alwaysdata API ==="
+            # Alwaysdata official method: POST /v1/service/{id}/restart/
+            # Services run on separate servers from SSH — pkill/pgrep CANNOT
+            # see the service process. The API sends SIGHUP to the supervisor.
+            # Auth: HTTP Basic. Format: "APIKEY account=blackbull:TOKEN"
+            # Ref: https://api.alwaysdata.com/v1/service/doc/
+            RESTART_RESPONSE=$(curl -fsS -X POST \
+              --basic --user "APIKEY account=blackbull:${{ secrets.ALWAYSDATA_API_KEY }}" \
+              "https://api.alwaysdata.com/v1/service/26686/restart/")
+            echo "API response: ${RESTART_RESPONSE}"
             echo "=== Deploy complete ==="
 
   # ------------------------------------------------------------------
