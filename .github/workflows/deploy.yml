@@ -64,11 +64,12 @@ jobs:
             echo "=== Verifying BlackBull version ==="
             .venv/bin/python -c 'import blackbull; print(f"blackbull {blackbull.__version__}")'
 
-            echo "=== Restarting service via Alwaysdata API ==="
-            RESTART_RESPONSE=$(curl -fsS -X POST \
-              -H "Authorization: Bearer ${{ secrets.ALWAYSDATA_API_KEY }}" \
-              "https://api.alwaysdata.com/v1/service/26686/restart/")
-            echo "API response: ${RESTART_RESPONSE}"
+            echo "=== Restarting service ==="
+            # Kill the running BlackBull process.
+            # Alwaysdata Services supervisor detects the exit and auto-restarts
+            # with the newly installed code (scripts/run-service.sh).
+            pkill -f "blackbull blackbull_demo.app:app" || true
+            echo "Signal sent — supervisor will restart the service."
             echo "=== Deploy complete ==="
 
   # ------------------------------------------------------------------
