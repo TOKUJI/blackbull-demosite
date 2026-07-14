@@ -107,6 +107,22 @@ def create_app() -> BlackBull:
         """
         return RedirectResponse('/static/favicon.svg', status=HTTPStatus.MOVED_PERMANENTLY)
 
+    # -- robots.txt -------------------------------------------------------
+    @app.route(path='/robots.txt')
+    async def robots_txt():
+        """Serve robots.txt.
+
+        Disallows static assets and API endpoints from crawling.
+        No ``Sitemap:`` directive — the demo site has no sitemap yet.
+        """
+        body = (
+            'User-agent: *\n'
+            'Disallow: /static/\n'
+            'Disallow: /api/\n'
+            'Allow: /\n'
+        )
+        return Response(body.encode(), content_type='text/plain')
+
     # -- Routes -----------------------------------------------------------
 
     @app.route(path='/')
