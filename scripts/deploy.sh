@@ -42,11 +42,18 @@ echo "[3/4] Updating dependencies..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
     "cd ${REMOTE_PATH} && .venv/bin/pip install -e ."
 
-# 4. Restart the service (kill process; supervisor auto-restarts)
+# 4. Restart the service via Alwaysdata API
 echo "[4/4] Restarting service..."
-ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
-    "pkill -f '[b]lackbull blackbull_demo.app:app' || true"
-echo "Signal sent — Alwaysdata Services supervisor will restart the process."
+ALWAYSDATA_API_KEY="${ALWAYSDATA_API_KEY:-}"
+if [[ -n "$ALWAYSDATA_API_KEY" ]]; then
+    RESTART_RESPONSE=$(curl -fsS -X POST \
+        --basic --user "${ALWAYSDATA_API_KEY}:" \
+        "https://api.alwaysdata.com/v1/service/${SERVICE_ID:-26686}/restart/")
+    echo "API response: ${RESTART_RESPONSE}"
+else
+    echo "⚠️  Set ALWAYSDATA_API_KEY for automatic restart."
+    echo "   Manual: Advanced > Services > restart in admin panel."
+fi
 
 echo "=== Deploy complete ==="
 echo "  → Health check: curl https://${ALWAYSDATA_USER}.alwaysdata.net/health"
