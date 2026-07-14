@@ -47,11 +47,10 @@ echo "[4/4] Restarting service..."
 ALWAYSDATA_API_KEY="${ALWAYSDATA_API_KEY:-}"
 SERVICE_ID="${SERVICE_ID:-26686}"
 if [[ -n "$ALWAYSDATA_API_KEY" ]]; then
-    curl -sS -X POST \
+    RESTART_RESPONSE=$(curl -fsS -X POST \
         -H "Authorization: Bearer ${ALWAYSDATA_API_KEY}" \
-        "https://api.alwaysdata.com/v1/service/${SERVICE_ID}/restart/"
-    echo ""
-    echo "Service restart requested via API."
+        "https://api.alwaysdata.com/v1/service/${SERVICE_ID}/restart/")
+    echo "API response: ${RESTART_RESPONSE}"
 else
     echo "⚠️  Set ALWAYSDATA_API_KEY for automatic restart."
     echo "   Manual: Advanced > Services > restart in admin panel."

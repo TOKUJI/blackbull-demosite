@@ -59,13 +59,16 @@ jobs:
             git reset --hard origin/main
 
             echo "=== Installing dependencies ==="
-            .venv/bin/pip install -e .
+            .venv/bin/pip install --upgrade -e .
+
+            echo "=== Verifying BlackBull version ==="
+            .venv/bin/python -c 'import blackbull; print(f"blackbull {blackbull.__version__}")'
 
             echo "=== Restarting service via Alwaysdata API ==="
-            curl -sS -X POST \
+            RESTART_RESPONSE=$(curl -fsS -X POST \
               -H "Authorization: Bearer ${{ secrets.ALWAYSDATA_API_KEY }}" \
-              "https://api.alwaysdata.com/v1/service/26686/restart/"
-            echo ""
+              "https://api.alwaysdata.com/v1/service/26686/restart/")
+            echo "API response: ${RESTART_RESPONSE}"
             echo "=== Deploy complete ==="
 
   # ------------------------------------------------------------------

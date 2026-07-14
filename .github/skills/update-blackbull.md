@@ -48,3 +48,29 @@ git push origin feature/bump-blackbull-<NEW_VERSION>
 - Watch GitHub Actions: `.github/workflows/deploy.yml`
 - Check live health: `curl https://blackbull.alwaysdata.net/health`
 - Expected: `"status":"ok"`, `"version"` reflects new BlackBull
+
+## Troubleshooting: Version not updating after deploy
+
+### Symptom
+Site shows old BlackBull version after successful PR merge to `main`.
+
+### Root cause (most likely)
+The Alwaysdata Service **was not restarted**. The deploy job's `curl` call to the
+Alwaysdata API used `curl -sS` (no `-f`/`--fail` flag), so HTTP 401/403/500
+errors from the API were silently ignored. `set -e` did not catch them.
+
+### Fix applied (2026-07-15)
+- Changed `curl -sS` → `curl -fsS` (adds `--fail`)
+- Captures and echoes API response for debugging
+- Added `--upgrade` to `.venv/bin/pip install -e .`
+- Added `python -c 'import blackbull; print(...)'` version verification step
+
+### Manual recovery
+If the automatic deploy didn't restart the service:
+```bash
+ssh <user>@ssh-<user>.alwaysdata.net
+cd ~/blackbull-demo
+git pull origin main
+.venv/bin/pip install --upgrade -e .
+# Then restart via Alwaysdata admin panel: Advanced > Services > restart
+```
