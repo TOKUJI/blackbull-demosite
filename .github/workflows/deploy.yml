@@ -64,14 +64,17 @@ jobs:
             echo "=== Verifying BlackBull version ==="
             .venv/bin/python -c 'import blackbull; print(f"blackbull {blackbull.__version__}")'
 
-            echo "=== Restarting service ==="
-            # Kill the running BlackBull process.
-            # Alwaysdata Services supervisor detects the exit and auto-restarts
-            # with the newly installed code (scripts/run-service.sh).
-            # The [b] bracket trick prevents pkill -f from matching its own
-            # command line (and killing the SSH session).
-            pkill -f "[b]lackbull blackbull_demo.app:app" || true
-            echo "Signal sent — supervisor will restart the service."
+            echo "=== Restarting service via Alwaysdata API ==="
+            # Alwaysdata official method: POST /v1/service/{id}/restart/
+            # Services run on separate servers from SSH — pkill/pgrep CANNOT
+            # see the service process. The API sends SIGHUP to the supervisor.
+            # Auth: HTTP Basic. Raw token as username, empty password.
+            # Bearer is NOT supported ("Only basic Authorization is supported").
+            # Ref: https://api.alwaysdata.com/v1/service/doc/
+            RESTART_RESPONSE=$(curl -fsS -X POST \
+              --basic --user "${{ secrets.ALWAYSDATA_API_KEY }}:" \
+              "https://api.alwaysdata.com/v1/service/26686/restart/")
+            echo "API response: ${RESTART_RESPONSE}"
             echo "=== Deploy complete ==="
 
   # ------------------------------------------------------------------
