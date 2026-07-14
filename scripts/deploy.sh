@@ -45,7 +45,7 @@ ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
 # 4. Restart the service (kill process; supervisor auto-restarts)
 echo "[4/4] Restarting service..."
 ssh "${ALWAYSDATA_USER}@${ALWAYSDATA_HOST}" \
-    "pkill -f '[b]lackbull blackbull_demo.app:app' || true"
+    'PID=$(pgrep -f "blackbull blackbull_demo" | head -1); if [ -n "$PID" ]; then kill "$PID"; echo "Killed PID $PID"; else echo "No process found"; fi'
 echo "Signal sent — Alwaysdata Services supervisor will restart the process."
 
 echo "=== Deploy complete ==="

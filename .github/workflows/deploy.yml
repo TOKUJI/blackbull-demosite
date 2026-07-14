@@ -65,13 +65,19 @@ jobs:
             .venv/bin/python -c 'import blackbull; print(f"blackbull {blackbull.__version__}")'
 
             echo "=== Restarting service ==="
-            # Kill the running BlackBull process.
+            # Find BlackBull PID and kill it.
             # Alwaysdata Services supervisor detects the exit and auto-restarts
             # with the newly installed code (scripts/run-service.sh).
-            # The [b] bracket trick prevents pkill -f from matching its own
-            # command line (and killing the SSH session).
-            pkill -f "[b]lackbull blackbull_demo.app:app" || true
-            echo "Signal sent — supervisor will restart the service."
+            # Uses pgrep + kill (two-step) instead of pkill to avoid:
+            # 1. pkill -f self-match (bracket trick is fragile across platforms)
+            # 2. pgrep runs first and exits → its own PID is gone when kill fires
+            PID=$(pgrep -f "blackbull blackbull_demo" | head -1)
+            if [ -n "$PID" ]; then
+              echo "Killing BlackBull PID $PID"
+              kill "$PID" || true
+            else
+              echo "No BlackBull process found — supervisor may already be restarting"
+            fi
             echo "=== Deploy complete ==="
 
   # ------------------------------------------------------------------
