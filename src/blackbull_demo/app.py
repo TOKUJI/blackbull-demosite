@@ -46,7 +46,7 @@ from typing import Any
 import blackbull
 from blackbull import BlackBull, Event, JSONResponse, RedirectResponse, Response, read_text
 from blackbull.middleware import Compression
-from blackbull_htcpcp import HtcpcpExtension
+from blackbull_htcpcp import HtcpcpExtension, HtcpcpMethod
 
 from blackbull_demo.templates import render_dashboard
 
@@ -206,8 +206,9 @@ def create_app() -> BlackBull:
             'body_preview': body_preview or None,
         }))
 
-    # -- HTCPCP (RFC 2324) ------------------------------------------------
-    HtcpcpExtension(app=app, pot_type='coffee')
+    # -- HTCPCP (RFC 2324 + RFC 7168) ------------------------------------
+    HtcpcpExtension(app=app, pot_type='coffee')                     # /pot
+    HtcpcpExtension(app=app, pot_type='teapot', path='/teapot')     # /teapot
 
     # -- OpenAPI / Swagger UI ---------------------------------------------
     # MUST be called *after* all route registrations.
@@ -278,23 +279,35 @@ def _get_route_list(app: BlackBull) -> list[dict[str, str]]:
 
     # Annotate HTCPCP routes for dashboard clarity
     _htcpcp_notes = {
-        ('BREW', '/pot'): 'HTCPCP BREW (RFC 2324)',
-        ('PROPFIND', '/pot'): 'HTCPCP PROPFIND',
-        ('WHEN', '/pot'): 'HTCPCP WHEN',
-        ('POST', '/pot'): 'HTCPCP BREW (POST fallback)',
-        ('GET', '/pot'): 'HTCPCP pot state',
-        ('GET', '/pot/when'): 'HTCPCP when',
+        # /pot — coffee (RFC 2324)
+        (HtcpcpMethod.BREW, '/pot'):     'HTCPCP BREW (RFC 2324)',
+        (HtcpcpMethod.PROPFIND, '/pot'): 'HTCPCP PROPFIND',
+        (HtcpcpMethod.WHEN, '/pot'):     'HTCPCP WHEN',
+        (HTTPMethod.POST, '/pot'):       'HTCPCP BREW (POST fallback)',
+        (HTTPMethod.GET, '/pot'):        'HTCPCP pot state',
+        (HTTPMethod.GET, '/pot/when'):   'HTCPCP when',
+        # /teapot — tea (RFC 7168)
+        (HtcpcpMethod.BREW, '/teapot'):     'HTCPCP-TEA BREW (RFC 7168)',
+        (HtcpcpMethod.PROPFIND, '/teapot'): 'HTCPCP-TEA PROPFIND',
+        (HtcpcpMethod.WHEN, '/teapot'):     'HTCPCP-TEA WHEN',
+        (HTTPMethod.POST, '/teapot'):       'HTCPCP-TEA BREW (POST fallback)',
+        (HTTPMethod.GET, '/teapot'):        'HTCPCP-TEA pot state',
+        (HTTPMethod.GET, '/teapot/when'):   'HTCPCP-TEA when',
     }
     for r in routes:
         note = _htcpcp_notes.get((r['method'], r['path']))
         if note:
             r['note'] = note
 
-    # Sort: static non-/pot → parameterised → /pot (HTCPCP last)
+    # Sort: static → parameterised → /pot → /teapot (HTCPCP last)
     def _sort_key(r: dict[str, str]) -> tuple[int, int, str, str]:
-        is_pot = 1 if r['path'].startswith('/pot') else 0
+        is_htcpcp = (
+            2 if r['path'].startswith('/teapot') else
+            1 if r['path'].startswith('/pot') else
+            0
+        )
         is_param = 1 if '{' in r['path'] else 0
-        return (is_pot, is_param, r['path'], r['method'])
+        return (is_htcpcp, is_param, r['path'], r['method'])
     routes.sort(key=_sort_key)
     return routes
 
