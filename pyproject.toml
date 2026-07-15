@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "blackbull>=0.53.4",
-    "blackbull-htcpcp",
+    "blackbull-htcpcp>=0.3.0",
 ]
 
 [project.optional-dependencies]
