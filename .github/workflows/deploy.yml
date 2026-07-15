@@ -58,15 +58,25 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            echo "=== Installing dependencies ==="
-            .venv/bin/pip install --upgrade -e .
+            echo "=== Cleaning all stale bytecode (pre-install) ==="
+            find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+            find . -name '*.pyc' -delete 2>/dev/null || true
 
-            echo "=== Cleaning stale bytecode cache ==="
-            find .venv/lib -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-            find .venv/lib -name '*.pyc' -delete 2>/dev/null || true
+            echo "=== Force-reinstalling dependencies ==="
+            .venv/bin/pip install --force-reinstall --no-deps -e .
+            .venv/bin/pip install --upgrade blackbull blackbull-htcpcp
 
-            echo "=== Verifying BlackBull version ==="
-            .venv/bin/python -c 'import blackbull; print(f"blackbull {blackbull.__version__}")'
+            echo "=== Cleaning stale bytecode (post-install) ==="
+            find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+            find . -name '*.pyc' -delete 2>/dev/null || true
+
+            echo "=== Verifying imports ==="
+            .venv/bin/python -c '
+            import blackbull; print(f"blackbull {blackbull.__version__}")
+            import blackbull_htcpcp; print(f"blackbull-htcpcp {blackbull_htcpcp.__version__}")
+            from blackbull_htcpcp import HtcpcpMethod; print(f"HtcpcpMethod: {list(HtcpcpMethod)}")
+            print("All imports OK")
+            '
 
             echo "=== Restarting service via Alwaysdata API ==="
             # Alwaysdata official method: POST /v1/service/{id}/restart/
