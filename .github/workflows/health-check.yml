@@ -1,9 +1,11 @@
 name: Health Check
 
 on:
+  push:
+    branches: [main]
   schedule:
-    # Every hour at minute 0 (secondary check; primary is UptimeRobot every 5 min)
-    - cron: '0 * * * *'
+    # Daily midnight UTC — belt-and-suspenders (primary: UptimeRobot + Services supervisor)
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
