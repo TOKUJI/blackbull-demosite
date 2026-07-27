@@ -289,11 +289,19 @@ def _coerce_status(raw: object) -> int:
 
 
 def _get_host(conn: Connection) -> str:
-    """Extract Host header from connection."""
+    """Extract the public-facing hostname from connection headers.
+
+    Prefers ``X-Forwarded-Host`` (set by reverse proxy) over ``Host``
+    (which carries the internal backend address behind a proxy).
+    """
+    host = ''
     for k, v in conn.headers:
-        if k.decode('latin-1').lower() == 'host':
+        key = k.decode('latin-1').lower()
+        if key == 'x-forwarded-host':
             return v.decode('latin-1', errors='replace')
-    return 'localhost'
+        if key == 'host':
+            host = v.decode('latin-1', errors='replace')
+    return host or 'localhost'
 
 
 def _get_route_list(app: BlackBull) -> list[dict[str, str]]:
