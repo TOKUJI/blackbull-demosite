@@ -79,7 +79,7 @@ def create_app() -> BlackBull:
             'http_version': d.get('http_version', '1.1'),
             'elapsed_ms': round(float(d.get('duration_ms', 0.0)), 2),
             'bytes': int(d.get('response_bytes', 0) or 0),
-            'user_agent': _extract_user_agent(d.get('scope', {}))[:60],
+            'user_agent': _extract_user_agent(d['conn'])[:60],
         })
         _stats['total'] += 1
 
@@ -263,11 +263,16 @@ def _build_stats_dict() -> dict[str, Any]:
     }
 
 
-def _extract_user_agent(scope: dict) -> str:
-    """Extract User-Agent header from ASGI scope (first 60 chars)."""
-    for k, v in scope.get('headers', []):
-        if k.decode('latin-1').lower() == 'user-agent':
-            return v.decode('utf-8', errors='replace')[:60]
+def _extract_user_agent(conn: Connection) -> str:
+    """Extract User-Agent header from a Connection (first 60 chars).
+
+    Since BlackBull v0.60.0 the ``request_completed`` event detail always
+    carries a native :class:`Connection` — the ASGI scope dict compat lane
+    is no longer needed.
+    """
+    for name, value in conn.headers:
+        if name.decode('latin-1').lower() == 'user-agent':
+            return value.decode('utf-8', errors='replace')[:60]
     return ''
 
 def _http_version_label(http_version: str) -> str:
@@ -316,22 +321,22 @@ def _get_route_list(app: BlackBull) -> list[dict[str, str]]:
 
     # Annotate QUERY and HTCPCP routes for dashboard clarity
     _query_notes = {
-        (QUERY, '/api/changelog'): 'QUERY method demo (RFC 9110)',
+        (QUERY, '/api/changelog'): 'QUERY demo (RFC 9110)',
     }
     _htcpcp_notes = {
         # /pot — coffee (RFC 2324)
-        (HtcpcpMethod.BREW, '/pot'):     'HTCPCP BREW (RFC 2324)',
+        (HtcpcpMethod.BREW, '/pot'):     'HTCPCP BREW',
         (HtcpcpMethod.PROPFIND, '/pot'): 'HTCPCP PROPFIND',
         (HtcpcpMethod.WHEN, '/pot'):     'HTCPCP WHEN',
-        (HTTPMethod.POST, '/pot'):       'HTCPCP BREW (POST fallback)',
-        (HTTPMethod.GET, '/pot'):        'HTCPCP pot state',
+        (HTTPMethod.POST, '/pot'):       'HTCPCP BREW (POST)',
+        (HTTPMethod.GET, '/pot'):        'HTCPCP GET',
         (HTTPMethod.GET, '/pot/when'):   'HTCPCP when',
         # /teapot — tea (RFC 7168)
-        (HtcpcpMethod.BREW, '/teapot'):     'HTCPCP-TEA BREW (RFC 7168)',
+        (HtcpcpMethod.BREW, '/teapot'):     'HTCPCP-TEA BREW',
         (HtcpcpMethod.PROPFIND, '/teapot'): 'HTCPCP-TEA PROPFIND',
         (HtcpcpMethod.WHEN, '/teapot'):     'HTCPCP-TEA WHEN',
-        (HTTPMethod.POST, '/teapot'):       'HTCPCP-TEA BREW (POST fallback)',
-        (HTTPMethod.GET, '/teapot'):        'HTCPCP-TEA pot state',
+        (HTTPMethod.POST, '/teapot'):       'HTCPCP-TEA BREW (POST)',
+        (HTTPMethod.GET, '/teapot'):        'HTCPCP-TEA GET',
         (HTTPMethod.GET, '/teapot/when'):   'HTCPCP-TEA when',
     }
     for r in routes:

@@ -11,7 +11,17 @@ Response size target: < 10 KB (HTML only; CSS is cached separately).
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List
+
+
+def _attr_escape(s: str) -> str:
+    """Escape a string for safe inclusion in a double-quoted HTML attribute.
+
+    Only escapes ``&`` and ``"`` — does **not** escape ``<`` or ``>``
+    so that JavaScript arrow functions (``=>``) and comparisons survive.
+    """
+    return s.replace('&', '&amp;').replace('"', '&quot;')
 
 
 def _format_uptime(seconds: float) -> str:
@@ -104,16 +114,25 @@ def render_dashboard(
             for param, val in _param_demo.items():
                 href = href.replace(param, val)
             path_html = f'<a href="{href}">{path}</a>'
+        elif path == '/api/methods' and method in ('POST', 'PUT'):
+            js = f"methodDemo({method!r})"
+            path_html = (
+                f'<span class="route-link" onclick="{_attr_escape(js)}">'
+                f'{path}</span>'
+            )
+        elif path == '/api/methods' and method == 'DELETE':
+            # DELETE is self-explanatory — plain text.
+            path_html = path
         elif method == 'QUERY':
             body = _query_bodies.get(path, '{}')
             js = (
                 f"fetch({path!r},{{method:'QUERY'"
                 f",headers:{{'Content-Type':'application/json'}}"
-                f",body:{body!r}"
+                f",body:{json.dumps(body)}"
                 + "}).then(r=>r.text()).then(t=>{document.getElementById('bb-resp').textContent=t;refreshStats()})"
                 + ".catch(e=>{document.getElementById('bb-resp').textContent='Error: '+e})"
             )
-            path_html = f'<span class="route-link" onclick="{js}">{path}</span>'
+            path_html = f'<span class="route-link" onclick="{_attr_escape(js)}">{path}</span>'
         else:
             # HTCPCP headers only for /pot routes
             extra_hdr = ''
@@ -126,7 +145,7 @@ def render_dashboard(
                 + "}).then(r=>r.text()).then(t=>{document.getElementById('bb-resp').textContent=t;refreshStats()})"
                 + ".catch(e=>{document.getElementById('bb-resp').textContent='Error: '+e})"
             )
-            path_html = f'<span class="route-link" onclick="{js}">{path}</span>'
+            path_html = f'<span class="route-link" onclick="{_attr_escape(js)}">{path}</span>'
         route_rows.append(
             f'<tr><td class="method">{method}</td>'
             f'<td class="path">{path_html}{note_html}</td></tr>'
@@ -179,15 +198,14 @@ def render_dashboard(
   </div>
 </div>
 
-<h2>Your Connection</h2>
+<h2>Connection</h2>
 <div class="conn-info">
   <dl>
     <dt>Protocol</dt><dd class="{proto_badge_cls}">{proto_label}</dd>
-    <dt>Encryption</dt><dd>{"TLS (direct — BlackBull ALPN)" if is_h2 else "TLS (Alwaysdata edge — Let's Encrypt)"}</dd>
   </dl>
 </div>
 
-<h2>Registered Routes ({len(routes)})</h2>
+<h2>Routes ({len(routes)})</h2>
 <table>
   <thead><tr><th>Method</th><th>Path</th></tr></thead>
   <tbody>
@@ -196,9 +214,9 @@ def render_dashboard(
 </table>
 
 <h2>Response</h2>
-<pre id="bb-resp" class="resp-area">Click a non-GET route above to see the response here.</pre>
+<pre id="bb-resp" class="resp-area">Click a route above.</pre>
 
-<h2>Recent Requests</h2>
+<h2>Requests</h2>
 <table>
   <thead><tr><th>Time (UTC)</th><th>Method</th><th>Path</th><th>Status</th><th>Proto</th><th>Bytes</th><th>Latency</th></tr></thead>
   <tbody id="bb-recent">
@@ -224,7 +242,7 @@ def render_dashboard(
   <a href="/docs">Swagger UI</a> ·
   <a href="/openapi.json">OpenAPI</a> ·
   <a href="/health">Health</a><br>
-  Powered by BlackBull — no uvicorn, no gunicorn, no hypercorn.
+  Powered by BlackBull
 </footer>
 
 <script>
@@ -253,6 +271,9 @@ function refreshStats(){{
     }}
   }});
 }}
+let _m='';
+function methodDemo(m){{_m=m;var r=document.getElementById('bb-resp');r.innerHTML='<textarea id=bb-in style=width:100%;height:3em;background:var(--bg);color:var(--text);border:1px solid var(--line);padding:.3em;font:inherit placeholder=\"'+m+' /api/methods \u2014 type body, Enter...\"></textarea>';var t=document.getElementById('bb-in');t.focus();t.addEventListener('keydown',function(e){{if(e.key==='Enter'&&!e.shiftKey){{e.preventDefault();sendDemo();}}}});}}
+function sendDemo(){{var b=document.getElementById('bb-in').value;fetch('/api/methods',{{method:_m,headers:{{'Content-Type':'text/plain'}},body:b}}).then(function(r){{return r.text()}}).then(function(t){{document.getElementById('bb-resp').textContent=t;refreshStats()}}).catch(function(e){{document.getElementById('bb-resp').textContent='Error: '+e}});}}
 </script>
 
 </body>
