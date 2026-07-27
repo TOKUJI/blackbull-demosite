@@ -43,6 +43,16 @@ def _format_elapsed(ms: float) -> str:
         return f'{ms / 1000:.2f}s'
 
 
+def _format_bytes(n: int) -> str:
+    """Format byte count for display."""
+    if n < 1024:
+        return str(n)
+    elif n < 1024 * 1024:
+        return f'{n / 1024:.1f}K'
+    else:
+        return f'{n / (1024 * 1024):.1f}M'
+
+
 def render_dashboard(
     *,
     version: str,
@@ -81,6 +91,9 @@ def render_dashboard(
         'BREW': "'Accept-Additions': 'Cream'",
         'POST': "'Accept-Additions': 'Cream'",
     }
+    _query_bodies: dict[str, str] = {
+        '/api/changelog': '{"version":"0.59.0"}',
+    }
     for r in routes:
         method = r.get('method', 'GET')
         path = r.get('path', '/')
@@ -91,6 +104,16 @@ def render_dashboard(
             for param, val in _param_demo.items():
                 href = href.replace(param, val)
             path_html = f'<a href="{href}">{path}</a>'
+        elif method == 'QUERY':
+            body = _query_bodies.get(path, '{}')
+            js = (
+                f"fetch({path!r},{{method:'QUERY'"
+                f",headers:{{'Content-Type':'application/json'}}"
+                f",body:{body!r}"
+                + "}).then(r=>r.text()).then(t=>{document.getElementById('bb-resp').textContent=t;refreshStats()})"
+                + ".catch(e=>{document.getElementById('bb-resp').textContent='Error: '+e})"
+            )
+            path_html = f'<span class="route-link" onclick="{js}">{path}</span>'
         else:
             # HTCPCP headers only for /pot routes
             extra_hdr = ''
@@ -121,6 +144,7 @@ def render_dashboard(
             f'<td class="path">{req["path"]}</td>'
             f'<td class="{status_cls}">{req["status"]}</td>'
             f'<td class="proto">{req["http_version"]}</td>'
+            f'<td class="bytes">{_format_bytes(req.get("bytes", 0))}</td>'
             f'<td class="elapsed">{elapsed}</td>'
             f'</tr>'
         )
@@ -176,9 +200,9 @@ def render_dashboard(
 
 <h2>Recent Requests</h2>
 <table>
-  <thead><tr><th>Time (UTC)</th><th>Method</th><th>Path</th><th>Status</th><th>Proto</th><th>Latency</th></tr></thead>
+  <thead><tr><th>Time (UTC)</th><th>Method</th><th>Path</th><th>Status</th><th>Proto</th><th>Bytes</th><th>Latency</th></tr></thead>
   <tbody id="bb-recent">
-    {''.join(req_rows) if req_rows else '<tr><td colspan="6" style="color:var(--muted)">No requests yet.</td></tr>'}
+    {''.join(req_rows) if req_rows else '<tr><td colspan="7" style="color:var(--muted)">No requests yet.</td></tr>'}</
   </tbody>
 </table>
 
@@ -204,6 +228,11 @@ def render_dashboard(
 </footer>
 
 <script>
+function fmtBytes(n){{
+  if(n<1024)return n.toString();
+  if(n<1048576)return (n/1024).toFixed(1)+'K';
+  return (n/1048576).toFixed(1)+'M';
+}}
 function refreshStats(){{
   fetch('/stats.json').then(r=>r.json()).then(d=>{{
     document.getElementById('bb-total').textContent = d.total_requests.toLocaleString();
@@ -217,10 +246,10 @@ function refreshStats(){{
         if(r.elapsed_ms<1) lat=(r.elapsed_ms*1000).toFixed(0)+'µs';
         else if(r.elapsed_ms<1000) lat=r.elapsed_ms.toFixed(1)+'ms';
         else lat=(r.elapsed_ms/1000).toFixed(2)+'s';
-        return '<tr><td class=time>'+r.time+'</td><td class=method>'+r.method+'</td><td class=path>'+r.path+'</td><td class='+cls+'>'+r.status+'</td><td class=proto>'+r.http_version+'</td><td class=elapsed>'+lat+'</td></tr>';
+        return '<tr><td class=time>'+r.time+'</td><td class=method>'+r.method+'</td><td class=path>'+r.path+'</td><td class='+cls+'>'+r.status+'</td><td class=proto>'+r.http_version+'</td><td class=bytes>'+fmtBytes(r.bytes||0)+'</td><td class=elapsed>'+lat+'</td></tr>';
       }}).join('');
     }}else{{
-      tb.innerHTML = '<tr><td colspan=6 style=color:var(--muted)>No requests yet.</td></tr>';
+      tb.innerHTML = '<tr><td colspan=7 style=color:var(--muted)>No requests yet.</td></tr>';
     }}
   }});
 }}
