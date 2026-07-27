@@ -3,27 +3,8 @@
 Single-file application entry point (target ≤300 lines).
 Uses BlackBull's built-in server — no uvicorn, gunicorn, or hypercorn.
 
-Launch methods::
-
-    # Production (Alwaysdata Services + Apache reverse proxy)
-    # Service on port 8300 → Apache ProxyPass → edge TLS :443
-    blackbull blackbull_demo.app:app --bind '[::]:8300'
-
-    # Local dev (HTTP/1.1)
-    python -m blackbull_demo.app
-    BB_PORT=8080 python -m blackbull_demo.app
-
-    # Local dev (HTTP/2 via self-signed cert — see scripts/gen-cert.sh)
-    blackbull blackbull_demo.app:app --bind :8443 \\
-        --certfile certs/cert.pem --keyfile certs/key.pem
-
-Environment variables:
-
-- ``BB_PORT`` — listening port (default 8000)
-- ``BB_MAX_CONNECTIONS`` — per-worker connection cap (default 20)
-- ``BB_WORKERS`` — worker processes (default 1; single worker required)
-- ``BB_CERTFILE`` / ``BB_KEYFILE`` — TLS cert/key for local HTTP/2 dev only
-  (production uses Alwaysdata edge TLS — no cert needed)
+See `blackbull run --help` and the BlackBull deployment guide for
+environment variables (`BLACKBULL_PORT`, `BLACKBULL_MAX_CONNECTIONS`, etc.).
 
 TLS strategy:
     - **Production:** Alwaysdata edge terminates TLS (Let's Encrypt).
@@ -35,16 +16,19 @@ TLS strategy:
 
 from __future__ import annotations
 
+import json
 import socket
 import sys
 import time
 from collections import deque
 from http import HTTPMethod, HTTPStatus
 from importlib.metadata import version
+from pathlib import Path
 from typing import Any
 
 import blackbull
-from blackbull import BlackBull, Event, JSONResponse, RedirectResponse, Response, read_text
+from blackbull import (BlackBull, Connection, Event, JSONResponse, QUERY,
+                       RedirectResponse, Response)
 from blackbull.middleware import Compression
 from blackbull_htcpcp import HtcpcpExtension, HtcpcpMethod
 
@@ -60,6 +44,16 @@ _APP_VERSION: str = version('blackbull-demo')
 
 # In-memory ring buffer for dashboard statistics (replaces stats.py).
 _stats: dict[str, Any] = {'buf': deque(maxlen=50), 'total': 0}
+
+# BlackBull changelog data (loaded once at import time).
+_CHANGELOG_PATH = Path(__file__).parent / 'changelog.json'
+with open(_CHANGELOG_PATH) as _f:
+    _CHANGELOG: dict[str, dict] = json.load(_f)
+
+# sitemap.xml template (loaded once at import time).
+_SITEMAP_PATH = Path(__file__).parent / 'sitemap.xml'
+with open(_SITEMAP_PATH) as _f:
+    _SITEMAP_TEMPLATE: str = _f.read()
 
 
 # ===================================================================
@@ -77,17 +71,15 @@ def create_app() -> BlackBull:
     @app.on('request_completed')
     async def _record(event: Event):
         d = event.detail
-        ua = _extract_user_agent(d.get('scope', {}))
-        raw_status = d.get('status', 0)
-        status = int(raw_status) if raw_status != '-' else 0
         _stats['buf'].append({
             'time': time.strftime('%H:%M:%S', time.gmtime()) + ' UTC',
             'method': d.get('method', '?'),
             'path': d.get('path', '/'),
-            'status': status,
+            'status': _coerce_status(d.get('status', 0)),
             'http_version': d.get('http_version', '1.1'),
-            'elapsed_ms': round(d.get('duration_ms', 0.0), 2),
-            'user_agent': ua[:60],
+            'elapsed_ms': round(float(d.get('duration_ms', 0.0)), 2),
+            'bytes': int(d.get('response_bytes', 0) or 0),
+            'user_agent': _extract_user_agent(d.get('scope', {}))[:60],
         })
         _stats['total'] += 1
 
@@ -109,26 +101,24 @@ def create_app() -> BlackBull:
 
     # -- robots.txt -------------------------------------------------------
     @app.route(path='/robots.txt')
-    async def robots_txt():
-        """Serve robots.txt.
-
-        Disallows static assets and API endpoints from crawling.
-        No ``Sitemap:`` directive — the demo site has no sitemap yet.
-        """
+    async def robots_txt(conn: Connection):
+        """Serve robots.txt with Sitemap directive."""
+        host = _get_host(conn)
         body = (
             'User-agent: *\n'
             'Disallow: /static/\n'
             'Disallow: /api/\n'
             'Allow: /\n'
+            f'Sitemap: https://{host}/sitemap.xml\n'
         )
         return Response(body.encode(), content_type='text/plain')
 
     # -- Routes -----------------------------------------------------------
 
     @app.route(path='/')
-    async def dashboard(scope, receive, send):
+    async def dashboard(conn: Connection):
         """HTML dashboard — human-facing landing page."""
-        http_ver = _http_version_label(scope.get('http_version', '1.1'))
+        http_ver = _http_version_label(conn.http_version)
         routes = _get_route_list(app)
         html = render_dashboard(
             version=blackbull.__version__,
@@ -137,7 +127,7 @@ def create_app() -> BlackBull:
             routes=routes,
             stats=_build_stats_dict(),
         )
-        await send(Response(html.encode(), content_type='text/html; charset=utf-8'))
+        return Response(html.encode(), content_type='text/html; charset=utf-8')
 
     @app.route(path='/health')
     async def health():
@@ -175,36 +165,56 @@ def create_app() -> BlackBull:
         }
 
     @app.route(path='/api/headers')
-    async def echo_headers(scope, receive, send):
+    async def echo_headers(conn: Connection):
         """httpbin-style request-header echo."""
-        headers_out: dict[str, str] = {}
-        for k, v in scope.get('headers', []):
-            headers_out[k.decode('latin-1').lower()] = v.decode(
-                'latin-1', errors='replace'
-            )
-        await send(JSONResponse({
-            'method': scope.get('method', '?'),
-            'path': scope.get('path', '/'),
-            'http_version': scope.get('http_version', '1.1'),
-            'headers': headers_out,
-        }))
+        return {
+            'method': conn.method,
+            'path': conn.path,
+            'headers': {k.decode('latin-1').lower(): v.decode('latin-1', errors='replace')
+                        for k, v in conn.headers},
+        }
 
     @app.route(
         path='/api/methods',
         methods=[HTTPMethod.GET, HTTPMethod.POST, HTTPMethod.PUT, HTTPMethod.DELETE],
     )
-    async def methods_demo(scope, receive, send):
+    async def methods_demo(conn: Connection):
         """Method-based routing demo — one path, four HTTP methods."""
-        method = scope.get('method', 'GET')
         body_preview = ''
-        if method in ('POST', 'PUT'):
-            body_text = await read_text(receive) or ''
+        if conn.method in ('POST', 'PUT'):
+            body_text = await conn.text() or ''
             body_preview = body_text[:100]
-        await send(JSONResponse({
-            'method': method,
-            'message': f'Handled {method} request',
+        return {
+            'method': conn.method,
+            'message': f'Handled {conn.method} request',
             'body_preview': body_preview or None,
-        }))
+        }
+
+    # -- QUERY method demo (RFC 9110) ------------------------------------
+    @app.route(path='/api/changelog', methods=[QUERY])
+    async def query_changelog(conn: Connection):
+        """QUERY method demo — search BlackBull changelog by version.
+
+        Send a JSON body with ``{"version": "0.59.0"}`` to retrieve
+        the changelog entry for that version.  An empty body or
+        missing ``version`` key returns the list of available versions.
+        """
+        try:
+            body = await conn.json() or {}
+            return {'version': body['version'],
+                    'changelog': _CHANGELOG[body['version']]}
+        except KeyError:
+            return {'available_versions': sorted(_CHANGELOG.keys(), reverse=True)}
+
+    # -- Sitemap -----------------------------------------------------------
+    @app.route(path='/sitemap.xml')
+    async def sitemap_xml(conn: Connection):
+        """Serve sitemap.xml — template with dynamic base URL."""
+        host = _get_host(conn)
+        body = _SITEMAP_TEMPLATE.replace('{base}', f'https://{host}')
+        return Response(
+            body.encode(), content_type='application/xml; charset=utf-8',
+        )
 
     # -- HTCPCP (RFC 2324 + RFC 7168) ------------------------------------
     HtcpcpExtension(app=app, pot_type='coffee')                     # /pot
@@ -267,6 +277,25 @@ def _http_version_label(http_version: str) -> str:
     return f'HTTP/{http_version}' if http_version else 'HTTP/1.1'
 
 
+def _coerce_status(raw: object) -> int:
+    """Coerce a status value from the event detail to int.
+
+    The ``request_completed`` event may carry ``'-'`` as a placeholder
+    when a global middleware buffers the response (BlackBull #145).
+    """
+    if raw == '-' or raw is None:
+        return 0
+    return int(raw)
+
+
+def _get_host(conn: Connection) -> str:
+    """Extract Host header from connection."""
+    for k, v in conn.headers:
+        if k.decode('latin-1').lower() == 'host':
+            return v.decode('latin-1', errors='replace')
+    return 'localhost'
+
+
 def _get_route_list(app: BlackBull) -> list[dict[str, str]]:
     """Extract registered route templates via ``app.get_routes()`` (public API)."""
     routes: list[dict[str, str]] = []
@@ -277,7 +306,10 @@ def _get_route_list(app: BlackBull) -> list[dict[str, str]]:
             seen.add(key)
             routes.append({'method': ri.method, 'path': ri.path, 'note': ''})
 
-    # Annotate HTCPCP routes for dashboard clarity
+    # Annotate QUERY and HTCPCP routes for dashboard clarity
+    _query_notes = {
+        (QUERY, '/api/changelog'): 'QUERY method demo (RFC 9110)',
+    }
     _htcpcp_notes = {
         # /pot — coffee (RFC 2324)
         (HtcpcpMethod.BREW, '/pot'):     'HTCPCP BREW (RFC 2324)',
@@ -295,7 +327,8 @@ def _get_route_list(app: BlackBull) -> list[dict[str, str]]:
         (HTTPMethod.GET, '/teapot/when'):   'HTCPCP-TEA when',
     }
     for r in routes:
-        note = _htcpcp_notes.get((r['method'], r['path']))
+        note = _query_notes.get((r['method'], r['path'])) or \
+               _htcpcp_notes.get((r['method'], r['path']))
         if note:
             r['note'] = note
 
@@ -323,8 +356,6 @@ app = create_app()
 # ===================================================================
 
 if __name__ == '__main__':
-    # All BB_* env vars are resolved automatically by app.run().
-    # max_connections=20 is enforced per Alwaysdata free-tier constraints.
     import subprocess
     from pathlib import Path
 

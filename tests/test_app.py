@@ -173,3 +173,97 @@ class TestOpenApi:
         response = client.get('/docs')
         assert response.status_code == 200
         assert 'text/html' in response.headers.get('content-type', '')
+
+
+class TestQueryChangelog:
+    """Tests for QUERY /api/changelog."""
+
+    def test_query_returns_changelog_for_known_version(self, client):
+        """Should return changelog entry for a known version."""
+        response = client.request('QUERY', '/api/changelog',
+                                  json={'version': '0.59.0'})
+        assert response.status_code == 200
+        data = response.json()
+        assert data['version'] == '0.59.0'
+        assert 'changelog' in data
+        assert 'QUERY' in str(data['changelog'])
+
+    def test_query_returns_version_list_for_unknown_version(self, client):
+        """Should return version list for an unknown version (KeyError fallback)."""
+        response = client.request('QUERY', '/api/changelog',
+                                  json={'version': '99.99.99'})
+        assert response.status_code == 200
+        data = response.json()
+        assert 'available_versions' in data
+
+    def test_query_returns_version_list_when_no_version_key(self, client):
+        """Should return available versions when version key is missing."""
+        response = client.request('QUERY', '/api/changelog',
+                                  json={})
+        assert response.status_code == 200
+        data = response.json()
+        assert 'available_versions' in data
+        assert isinstance(data['available_versions'], list)
+        assert '0.59.0' in data['available_versions']
+
+    def test_query_returns_version_list_when_empty_body(self, client):
+        """Should handle QUERY with no body gracefully."""
+        response = client.request('QUERY', '/api/changelog')
+        assert response.status_code == 200
+        data = response.json()
+        assert 'available_versions' in data
+
+    def test_query_handles_invalid_json(self, client):
+        """Should handle invalid JSON gracefully (req.json() returns None)."""
+        response = client.request('QUERY', '/api/changelog',
+                                  content='not json',
+                                  headers={'Content-Type': 'application/json'})
+        assert response.status_code == 200
+        data = response.json()
+        assert 'available_versions' in data
+
+    def test_query_returns_changelog_for_old_version(self, client):
+        """Should return changelog for older versions too."""
+        response = client.request('QUERY', '/api/changelog',
+                                  json={'version': '0.50.0'})
+        assert response.status_code == 200
+        data = response.json()
+        assert data['version'] == '0.50.0'
+        assert 'Request' in str(data['changelog'])  # v0.50.0 shipped Request
+
+
+class TestSitemapXml:
+    """Tests for GET /sitemap.xml."""
+
+    def test_sitemap_returns_200(self, client):
+        response = client.get('/sitemap.xml')
+        assert response.status_code == 200
+
+    def test_sitemap_content_type(self, client):
+        response = client.get('/sitemap.xml')
+        assert 'application/xml' in response.headers.get('content-type', '')
+
+    def test_sitemap_contains_expected_urls(self, client):
+        response = client.get('/sitemap.xml')
+        text = response.text
+        assert '<urlset' in text
+        assert 'sitemaps.org/schemas/sitemap/0.9' in text
+        for path in ['/', '/docs', '/pot', '/pot/when', '/teapot', '/teapot/when']:
+            assert f'<loc>' in text  # placeholder must be replaced with a real URL
+
+    def test_sitemap_base_url_is_https(self, client):
+        response = client.get('/sitemap.xml')
+        text = response.text
+        assert 'https://' in text
+
+
+class TestRobotsTxt:
+    """Tests for GET /robots.txt."""
+
+    def test_robots_has_sitemap_directive(self, client):
+        response = client.get('/robots.txt')
+        assert 'Sitemap:' in response.text
+
+    def test_robots_disallows_api(self, client):
+        response = client.get('/robots.txt')
+        assert 'Disallow: /api/' in response.text

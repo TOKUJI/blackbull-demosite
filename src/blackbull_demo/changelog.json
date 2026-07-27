@@ -1,0 +1,518 @@
+{
+  "0.60.0": {
+    "date": "2026-07-22",
+    "changed": [
+      "Native Connection interface — the single internal request representation (Sprint 79). A typed Connection dataclass (blackbull.Connection) is now BlackBull's one internal model of a request. The protocol actors build it directly in their parsers, and the router, dispatcher, and handlers read it. The ASGI scope dict is demoted to a derived view (Connection.as_scope() / Connection.from_scope())."
+    ],
+    "deprecated": [
+      "blackbull.Request → use blackbull.Connection. The opt-in handler context object was renamed. blackbull.Request is now a deprecated alias of Connection that emits a DeprecationWarning on first attribute access. Migrate by renaming the import and the parameter annotation — the members are identical, with one rename: request.scope (a stored dict) becomes conn.as_scope() (a freshly-derived dict)."
+    ]
+  },
+  "0.59.1": {
+    "date": "2026-07-20",
+    "fixed": [
+      "gRPC server-streaming Watch flakiness (DEADLINE_EXCEEDED). H2 sender's trailers-coalescing optimisation buffered the first DATA frame when trailers: True was set, deferring the write until trailers arrived. For server-streaming handlers that park after the first yield, the buffered frame was never flushed, starving the client. Added call_soon auto-flush."
+    ]
+  },
+  "0.59.0": {
+    "date": "2026-07-19",
+    "added": [
+      "HTTP QUERY method support (RFC 10008, Sprint 78 P1). First-mover support for the first new standard HTTP method since PATCH — safe, idempotent, cacheable, with a request body. New blackbull.QUERY plain-string constant. Routing, body access (body: bytes / Request.json()), 405 Allow advertisement, and the four request-lifecycle events are pinned by tests over HTTP/1.1, HTTP/2, and TestClient.",
+      "QUERY normative response semantics (RFC 10008, Sprint 78 P2). New accept_query=[...] route option declaring the request media types a QUERY route accepts. Drives an Accept-Query response header (RFC 9651 Structured Field list). Content-Type enforcement on QUERY requests: 400 when missing, 415 when unaccepted. New blackbull.UnprocessableQuery exception (HTTPException subclass) for handlers to raise → 422."
+    ],
+    "fixed": [
+      "HTTP/2: spurious http.disconnect on body-less requests. When HEADERS carried END_STREAM and the connection closed before the handler's first receive(), the synthetic empty-body fast path was disabled. The synthetic event is now delivered first; the disconnect follows it."
+    ]
+  },
+  "0.58.0": {
+    "date": "2026-07-19",
+    "added": [
+      "Edge inference API server positioning (Sprint 76). New guide page Edge inference serving: SSE token streaming with HTTP/2 multiplexing for interactive clients beside MQTT device ingest and $share/… work queues. Ships with runnable, dependency-free examples/edge_inference.py."
+    ],
+    "changed": [
+      "Router trie fast path (Sprint 77). Static-path map short-circuits literal routes, method matching is a frozenset membership test. Parameterised _resolve dropped ~1555→959 ns, static routes ~1244→232 ns."
+    ],
+    "removed": [
+      "ConnCoalescer / BB_H2_CONN_BUFFER_US (Sprint 77). The opt-in connection-level TCP-segment coalescer (default-off since v0.48.0) is removed — produced no throughput or tail-latency gain on any measured workload."
+    ],
+    "fixed": [
+      "Python 3.11 compatibility restored (Sprint 77). HTTPStatus.is_client_error and .is_server_error are Python 3.12-only; importing BlackBull raised on 3.11 (regressed in 0.48.1, present through 0.57.0). Replaced with integer-range helpers; added 3.11 CI lane."
+    ]
+  },
+  "0.57.0": {
+    "date": "2026-07-17",
+    "added": [
+      "MQTT 5 shared subscriptions (§4.8.2, Sprint 75). Subscribers naming the same $share/{ShareName}/{filter} pair form a share group; each matching message is delivered to exactly one connected member, round-robin per group.",
+      "TLS for raw protocol bindings (Sprint 75). app.raw_handler(name, port=…, tls=True) / MQTTExtension(port=8883, tls=True) serve the binding's port through the server's TLS machinery."
+    ]
+  },
+  "0.56.0": {
+    "date": "2026-07-16",
+    "added": [
+      "Query params in the simplified handler model (Sprint 74). A handler parameter that is neither a path param, body, scope, Request, dataclass body, nor Depends now resolves from the query string, coerced to its annotation.",
+      "Depends — per-request provider injection (Sprint 74). New module blackbull.di; db=Depends(get_db) as a parameter default injects the provider's value per request. Async-generator providers yield the value and tear down after the response is sent."
+    ]
+  },
+  "0.55.0": {
+    "date": "2026-07-16",
+    "added": [
+      "RFC 9651 Structured Field Values (Sprint 73). New module blackbull.protocol.structured_fields implements the full RFC 9651 §4 parse/serialise algorithms — Items, Lists, Dictionaries, Inner Lists, Parameters, and all eight bare-item types — with zero new dependencies, verified against all 2,135 cases of the httpwg/structured-field-tests conformance suite.",
+      "Headers.get_sf_item / get_sf_list / get_sf_dict — parse a header as a Structured Field of the given type, combining multiple field lines per RFC 9651 §4.2.",
+      "Protocol translation hub showcase (Sprint 73, C4). New example examples/translation_hub.py: MQTT → WebSocket, MQTT → SSE, and REST → gRPC translation in a single BlackBull process."
+    ],
+    "fixed": [
+      "MQTT @mqtt.on_message taps were dead in actor mode (the default). TapActor compiled the tap table immediately — before any @mqtt.on_message decorator had run. TapActor now tracks the live handler list and recompiles when it grows."
+    ]
+  },
+  "0.54.0": {
+    "date": "2026-07-16",
+    "fixed": [
+      "HTTP/2 :authority is now validated and surfaced as the host header (#150, Sprint 72; RFC 9113 §8.3.1). Previously request.headers.get(b'host') returned None for virtually every HTTP/2 client.",
+      "Experimental H2 client: send windows now honour the server's SETTINGS_INITIAL_WINDOW_SIZE for late streams (#151)."
+    ],
+    "removed": [
+      "The deprecated in-tree Session middleware (blackbull.middleware.Session). Deprecated since 0.38; migration: install blackbull-session and swap app.use(Session(...)) for SessionExtension(app, ...)."
+    ]
+  },
+  "0.53.4": {
+    "date": "2026-07-15",
+    "fixed": [
+      "request_completed now reports the real status / byte count when a global middleware buffers the response (issue #145). Emission moved to BlackBull.__call__, after the global middleware chain returns."
+    ]
+  },
+  "0.53.3": {
+    "date": "2026-07-14",
+    "fixed": [
+      "MQTT 5.0 broker hardening — eight RFC-conformance bugs (Sprint 70): Keep-alive enforcement (§3.1.2.10), Session takeover (§3.1.4), QoS 2 inbound de-duplication (§4.3.3), Topic validation on PUBLISH/SUBSCRIBE, No Local and Retain As Published subscription options honoured, Shared subscriptions rejected explicitly, QoS 2 outbound + DUP replay on reconnect, Malformed CONNECT no longer drops connection on IndexError."
+    ]
+  },
+  "0.53.2": {
+    "date": "2026-07-14",
+    "fixed": [
+      "Compression now emits Vary: Accept-Encoding on compressible responses it does not actually compress (bug 1.21f).",
+      "Cache no longer orphans variant entries after LRU eviction (bug 1.21g). The store is now a single LRU of per-URL buckets."
+    ]
+  },
+  "0.53.1": {
+    "date": "2026-07-13",
+    "added": [
+      "StaticFiles conditional requests. Emits strong ETag (from mtime + size) and Last-Modified; honours If-None-Match / If-Modified-Since with 304 Not Modified."
+    ],
+    "fixed": [
+      "Compression now emits Vary: Accept-Encoding on compressed responses (RFC 9110 §12.5.5, bug 1.21a).",
+      "Cache is now variant-aware (bug 1.21b). Response Vary fields folded into the cache key.",
+      "TrustedProxy parses multi-element RFC 7239 Forwarded headers correctly (bug 1.21e)."
+    ]
+  },
+  "0.53.0": {
+    "date": "2026-07-13",
+    "added": [
+      "Router(cache_max=…) — route lookup-cache bound is now a constructor argument (default 2048; 0 disables)."
+    ],
+    "fixed": [
+      "ASGI conformance: scope['path'] is now percent-decoded; raw_path no longer includes the query string (Sprint 68). scope['path'] is decoded once at scope construction on every transport.",
+      "ASGI conformance: RFC 3986 ; path sub-delimiter is now preserved in path and raw_path on both transports (Sprint 68)."
+    ]
+  },
+  "0.52.0": {
+    "date": "2026-07-12",
+    "fixed": [
+      "Send-path size gate — writelines regression (inter-sprint). BaseSender._write_many now joins parts totalling ≤ 32 KiB into a single write(); only larger payloads use vectored writelines. Recovers the full HTTP/1.1 baseline regression (−10% CPU/request vs v0.51.0).",
+      "HTTP/2 bidi stream state: client END_STREAM now half-closes, not closes (RFC 9113 §5.1). Stream now enters HALF_CLOSED_REMOTE; WINDOW_UPDATE after client END_STREAM no longer triggers RST_STREAM."
+    ],
+    "changed": [
+      "Connection-accept path trims. Cleartext protocol-detection order cached on ProtocolRegistry; per-connection ids generated by new_connection_id() (12-hex prefix + 8-hex monotonic sequence) replacing per-connection uuid.uuid4()."
+    ]
+  },
+  "0.51.0": {
+    "date": "2026-07-12",
+    "added": [
+      "blackbull[protobuf] extra → new blackbull-protobuf 0.1.0 package: add_servicer, enable_reflection (grpc.reflection.v1alpha), enable_health (grpc.health.v1 Check + Watch), abort_with_details (google.rpc.Status details in grpc-status-details-bin trailer)."
+    ],
+    "fixed": [
+      "gRPC error paths now deliver set_trailing_metadata. Previously dropped the context's trailing metadata on every non-OK shape.",
+      "Interactive server-streaming no longer withholds messages. Write-coalescing batcher replaced by a loop-idle flusher task."
+    ]
+  },
+  "0.50.0": {
+    "date": "2026-07-11",
+    "added": [
+      "Request context object for simplified handlers (from blackbull import Request). Declare request: Request and the router injects a per-request object exposing method, path, headers, cookies, client, scheme, and awaitables body() / json() / text(). Detected at registration time — no per-request reflection cost."
+    ]
+  },
+  "0.49.4": {
+    "date": "2026-07-10",
+    "fixed": [
+      "Request-lifecycle events fire exactly once per request, under any transport. Emission consolidated to a single choke point, BlackBull._dispatch.",
+      "HTTP/2 request_completed details carry real wire fields. HTTP/2 now publishes its access-log record the same way HTTP/1.1 does."
+    ],
+    "removed": [
+      "Net −614 lines of dead code: orphaned EventEmitter utility, ~40 pre-registered identical ErrorRouter fallback entries, racy TOCTOU check_port connect-probe, parse_post_data, and other unused helpers."
+    ]
+  },
+  "0.49.3": {
+    "date": "2026-07-09",
+    "security": [
+      "HTTP/1.1 chunk-framing line length bound (audit 1.24, CVE-2023-39326 class): chunk-size+extension line and every trailer line capped at 8 KiB.",
+      "HTTP/1.1 prohibited trailer fields rejected (RFC 9110 §6.5.1): Transfer-Encoding, Content-Length, Host, Authorization, Content-Type, etc. in chunked trailer → 400.",
+      "HTTP/1.1 strict Content-Length (RFC 9110 §8.6): leading zeros, doubled/tab/trailing OWS rejected 400.",
+      "HTTP/1.1 underscore framing confusables: Content_Length / Transfer_Encoding header names rejected 400."
+    ],
+    "fixed": [
+      "HTTP/1.1 missing Host → 400 (RFC 9112 §3.2). Unsupported HTTP major version → 505. No 100 Continue to HTTP/1.0 clients.",
+      "HTTP/2 refused multi-frame HEADERS no longer kills the connection (audit 1.14 #2).",
+      "Http11Probe re-score: 161/161 (0 failed, 5 warnings) — up from 156/161 at v0.49.2."
+    ]
+  },
+  "0.49.2": {
+    "date": "2026-07-08",
+    "fixed": [
+      "Consume-based inbound HTTP/2 flow control (Sprint 62). WINDOW_UPDATE credit replayed when the application consumes the event, not when the frame is enqueued — a slow handler now back-pressures the peer instead of overflowing the recipient queue into RST_STREAM(ENHANCE_YOUR_CALM).",
+      "Chunked request framing (RFC 9112 §7.1) — chunk-size token validated against strict 1*HEXDIG grammar before int(), chunk-ext grammar validated, CRLF termination enforced.",
+      "Request-target forms (RFC 9112 §3.2) — absolute-form rewritten to origin-form for routing; asterisk-form (OPTIONS *) answered server-wide 204 + Allow.",
+      "Bug 1.16 — X-Forwarded-Prefix no longer trusted off the wire. Only TrustedProxy middleware sets root_path after verifying the direct peer."
+    ]
+  },
+  "0.49.1": {
+    "date": "2026-07-07",
+    "fixed": [
+      "HTTP/1.1: chunked bodies split across TCP segments now reassembled whole with readexactly. A raising app_startup hook now emits lifespan.startup.failed. Double-response splice: HTTP1Sender drops response events once a response has completed.",
+      "HTTP/2: Connection-level flow control now uses one shared send window. GOAWAY early-return now signals recipients. Closed-stream tracking is bounded (LRU cap + high-water mark).",
+      "New public API: ClientDisconnected (raised by read_body on mid-body disconnect), HTTPException (status-carrying exception)."
+    ]
+  },
+  "0.49.0": {
+    "date": "2026-07-07",
+    "added": [
+      "Client-streaming and bidirectional-streaming gRPC — all four RPC kinds now served over the ASGI bridge. Incremental Length-Prefixed-Message de-framer reassembles messages across http.request events.",
+      "gRPC gzip message compression — compressed requests decompressed with decompression-bomb guard; server advertises grpc-accept-encoding: identity,gzip.",
+      "Fuller GrpcContext — time_remaining() (from grpc-timeout), peer(), invocation_metadata(), send_initial_metadata()."
+    ]
+  },
+  "0.48.1": {
+    "date": "2026-07-05",
+    "fixed": [
+      "IPv6 requests returned an empty reply (RFC 3986 §3.2.2). Parsing a bracketed IPv6 Host header ([::1]:8100) with split(b':') produced ValueError. Host parsing now understands the bracket form."
+    ]
+  },
+  "0.48.0": {
+    "date": "2026-07-04",
+    "added": [
+      "Async logging is now batch logging (BB_LOG_BATCH_SIZE, default 64). Coalesces records into one write()+flush() per batch via flusher thread.",
+      "Structured JSON logging (BB_LOG_FORMAT=json). Emits one JSON object per line instead of plain text. Access-log records expose client_ip, method, path, http_version, status, response_bytes, duration_ms.",
+      "Syslog / UDP log shipping (BB_SYSLOG_ADDR=host:port). Ships records via UDP SysLogHandler; composes with BB_LOG_FORMAT=json.",
+      "Access-log fast path — direct enqueue, bypassing logging.Logger._log. ~7.5µs → ~5.7µs per emit (−24%).",
+      "File log sink (BB_LOG_FILE=path). Async-logging sink writes to a file (append mode) instead of stderr."
+    ]
+  },
+  "0.47.0": {
+    "date": "2026-07-03",
+    "added": [
+      "Server-streaming gRPC — a gRPC handler may be an async generator that yields response messages. Verified with real grpcio unary_stream client including 5000-message flow-control shape.",
+      "scope_completed event — guaranteed, cross-protocol terminal event emitted once per ASGI scope on success or error.",
+      "Blocking observers — @app.on(name, blocking=True) adds a third event delivery mode: awaited in registration order yet isolated.",
+      "app.register_converter(type, fn) — extend simplified-handler return coercion. Pre-fork warm-up hooks (@app.on_warmup)."
+    ]
+  },
+  "0.46.0": {
+    "date": "2026-06-30",
+    "added": [
+      "Unary gRPC over HTTP/2 (blackbull.grpc): GrpcServiceRegistry, GrpcStatus / GrpcError, Length-Prefixed-Message codec, ASGI bridge (serve_grpc + GrpcContext). gRPC requests multiplex onto the same HTTP/2 port as REST and WebSocket.",
+      "app.get_routes() + RouteInfo — public, stable route introspection."
+    ],
+    "fixed": [
+      "HTTP/2 large-payload flow-control deadlock — three pre-existing transport bugs surfaced by gRPC conformance, affecting any bidirectional exchange over the 65535-byte initial window."
+    ]
+  },
+  "0.45.0": {
+    "date": "2026-06-27",
+    "added": [
+      "BLACKBULL_* environment-variable + .env resolution for app.run(). Deploy-time settings resolve with documented precedence: explicit run(...) argument → BLACKBULL_* env var → .env file.",
+      "RedirectResponse — Response convenience subclass that sets a Location header and a 3xx status.",
+      "read_json / read_text — request-body helpers wrapping read_body. Both exported from blackbull."
+    ]
+  },
+  "0.44.1": {
+    "date": "2026-06-26",
+    "added": [
+      "AsyncAPIExtension — AsyncAPI 3.0 docs for the MQTT broker. Serves an AsyncAPI 3.0 document describing @mqtt.on_message topic taps at /asyncapi.json, plus HTML viewer at /asyncapi.",
+      "HTTP now scales across workers alongside a stateful protocol (MQTT). app.run(port=8000, workers=4) with MQTTExtension(port=1883) — master binds protocol port once and hands it to worker 0 only."
+    ],
+    "changed": [
+      "Hot-path copy + logging reduction. read_body() joins chunks once; header block accumulated in bytearray (amortised O(1)); per-frame logging is lazy %-args or isEnabledFor-guarded."
+    ]
+  },
+  "0.44.0": {
+    "date": "2026-06-25",
+    "added": [
+      "MQTT 5 broker sidecar (Sprint 52). Pure-Python MQTT 5 broker on the Non-ASGI bridge alongside HTTP. MQTTExtension: mqtt = app.add_extension(MQTTExtension(port=1883)). CONNECT/CONNACK, SUBSCRIBE/UNSUBSCRIBE, PUBLISH at QoS 0/1/2, retained messages, Will (LWT) delivery, keep-alive PING, Clean Start / Session Present.",
+      "Non-ASGI protocol bridge (Sprint 50). app.raw_handler(name, *, port=…) registers a raw-TCP protocol alongside HTTP on other ports.",
+      "Generic extension mechanism. blackbull.extension.Extension base class; app.add_extension(ext) is the single registration seam.",
+      "Unified ProtocolRegistry (Sprint 50). Connection dispatch is now registry-driven instead of hardcoded _dispatch()."
+    ],
+    "changed": [
+      "MQTT broker rewritten to the actor model (Sprint 53). Single BrokerActor owns all routing/session/retained state (serial inbox ⇒ no locks)."
+    ]
+  },
+  "0.43.2": {
+    "date": "2026-06-22",
+    "fixed": [
+      "Middleware send wrappers received Response objects instead of ASGI dicts. Fix: install _wrap_send at the handler boundary in _dispatch."
+    ]
+  },
+  "0.43.1": {
+    "date": "2026-06-21",
+    "fixed": [
+      "Router.validate() — forward-ref annotation crash on lifespan startup. Route handlers with string types or PEP 563 annotations caused SyntaxError inside beartype's code generator."
+    ]
+  },
+  "0.43.0": {
+    "date": "2026-06-20",
+    "added": [
+      "AppConfig — declarative startup config. Frozen dataclass holding exactly the parameters run()/serve() accept.",
+      "blackbull serve — zero-code static file server. Serves a directory over HTTP/1.1 (and HTTP/2 with TLS) with ETag / 304 conditional requests, directory index, and precompressed-sibling negotiation."
+    ]
+  },
+  "0.42.3": {
+    "date": "2026-06-19",
+    "changed": [
+      "HTTP/2 perf: deferred HEADERS write coalesces HEADERS + DATA into one TCP segment. HTTP2Sender now buffers http.response.start HEADERS frame internally and flushes it together with the first DATA frame in a single write() call."
+    ]
+  },
+  "0.42.2": {
+    "date": "2026-06-19",
+    "fixed": [
+      "RFC 9113 compliance: RST_STREAM and PUSH_PROMISE frames with stream_id == 0 now raise a connection error per RFC 9113 §6.4 and §6.6."
+    ]
+  },
+  "0.42.1": {
+    "date": "2026-06-18",
+    "added": [
+      "Custom HTTP Method Support (Proposal 009 Phase 1). Routes can now be registered and dispatched using non-IANA HTTP method strings such as BREW, PROPFIND, and WHEN from RFC 2324 / RFC 4918. blackbull-htcpcp extension unblocked."
+    ]
+  },
+  "0.42.0": {
+    "date": "2026-06-16",
+    "added": [
+      "blackbull.fault_injection public module — programmable deliberate-misbehaviour toolkit. H2FaultServer: programmable HTTP/2 server built on hpack + raw RFC 9113 frame layer. HTTP/2 fault catalogue: four spec-grade scenarios (half_closed_stream, exhausted_window, illegal_settings, headers_continuation_dropped). TLS support via make_self_signed_h2_context()."
+    ]
+  },
+  "0.41.0": {
+    "date": "2026-06-16",
+    "added": [
+      "EventSourceResponse — formats each yielded item per the WHATWG SSE grammar. Accepts str, bytes, or Mapping with optional data/event/id/retry keys.",
+      "Async generator return type for simplified handlers. A route returning async def stream(): yield ... is auto-wrapped in StreamingResponse."
+    ]
+  },
+  "0.40.1": {
+    "date": "2026-06-15",
+    "added": [
+      "CapHitCounter gains connection_id field for log correlation across connection-bound records. Dirty-flush triggers: threshold trigger (flush_threshold=, default 100) and interval trigger (flush_interval=, default 60.0 s)."
+    ]
+  },
+  "0.40.0": {
+    "date": "2026-06-15",
+    "added": [
+      "Cap-hit observability (Sprint 44). Every user-tunable resource cap emits one WARNING-level record on blackbull.caps logger when it rejects traffic. Single misbehaving peer cannot flood the log — first hit per (connection, cap) logs in full, subsequent hits silently counted, one summary on connection close. Twelve cap rejection sites wired."
+    ]
+  },
+  "0.39.1": {
+    "date": "2026-06-15",
+    "fixed": [
+      "SocketManager no longer crashes on platforms where socket.AF_UNIX is undefined (notably Windows). Response(headers=[('Foo', 'bar')]) with str-typed tuple elements now accepted — coerced to ASCII bytes per RFC 9110 §5.5."
+    ]
+  },
+  "0.39.0": {
+    "date": "2026-06-15",
+    "added": [
+      "Conformance CI lane (Sprint 43). h2spec + Autobahn external conformance suites wired into GitHub Actions CI alongside docker-free regression replay of HTTP/1.1 differential user-corpus."
+    ],
+    "changed": [
+      "WebSocket inbound-frame payload cap default raised from 1 MiB to 64 MiB and made configurable via BB_WS_MAX_FRAME_PAYLOAD env var."
+    ]
+  },
+  "0.38.0": {
+    "date": "2026-06-14",
+    "added": [
+      "Extension surface proven with blackbull-session — the first third-party extension living outside the BlackBull repo, published on PyPI via OIDC trusted publishing."
+    ],
+    "deprecated": [
+      "blackbull.middleware.Session now emits DeprecationWarning. Migrate to pip install blackbull-session and from blackbull_session import SessionExtension."
+    ]
+  },
+  "0.37.0": {
+    "date": "2026-06-14",
+    "added": [
+      "blackbull.openapi.OpenAPIExtension — in-tree reference implementation of the init_app(app) extension convention. Supports both eager and deferred construction styles."
+    ]
+  },
+  "0.36.0": {
+    "date": "2026-06-14",
+    "added": [
+      "BlackBull.extensions: dict[str, object] — namespace for third-party integrations following the init_app(app) convention.",
+      "app.on_error(int) — accepts a plain int HTTP status code in addition to HTTPStatus and exception classes."
+    ]
+  },
+  "0.35.0": {
+    "date": "2026-06-14",
+    "security": [
+      "HTTP/2 CONTINUATION header-block size cap (high severity). Mirror HTTP/1.1 BB_HEADER_MAX_TOTAL budget (64 KiB default); emit RST_STREAM(ENHANCE_YOUR_CALM) on over-cap streams.",
+      "WebSocket frame payload size cap (medium severity). New _MAX_FRAME_PAYLOAD (default 1 MiB) — check fires before any body bytes are read off the wire.",
+      "HTTP/2 inbound RST_STREAM rate limit (high severity — CVE-2023-44487 Rapid Reset). Per-second rolling counter on inbound RST_STREAM frames; over 20/s → GOAWAY(ENHANCE_YOUR_CALM)."
+    ],
+    "added": [
+      "BB_H2_WS_MAX_STREAMS_PER_CONNECTION (default 5) caps concurrent WebSocket streams per HTTP/2 connection.",
+      "blackbull.client.WebSocketH2Client / WebSocketH2Session — public RFC 8441 client built on HTTP2Client."
+    ],
+    "fixed": [
+      "Server-side connection-level WINDOW_UPDATE on inbound DATA (RFC 9113 §6.9.1). Any HTTP/2 upload past 65,535 cumulative bytes per connection previously stalled."
+    ]
+  },
+  "0.34.0": {
+    "date": "2026-06-13",
+    "added": [
+      "HTTP/2 response trailers (http.response.trailers). HTTP2 sender now emits HEADERS frame with END_STREAM | END_HEADERS and regular fields only.",
+      "BB_REQUEST_TIMEOUT on the HTTP/1.1 path. Previously applied only to HTTP/2 streams. HTTP/1.1 keep-alive loop now wraps each dispatch with asyncio.wait_for guard."
+    ],
+    "fixed": [
+      "HTTP1Sender per-request state was sticky across keep-alive requests. _started/_chunked/_buffered_status/_buffered_headers/_expect_trailers now reset between requests."
+    ]
+  },
+  "0.33.1": {
+    "date": "2026-06-12",
+    "changed": [
+      "Brotli default quality lowered from 11 to 4 for Compression middleware's dynamic-response path. q=4 matches Google's and Cloudflare's recommendation for dynamic content."
+    ]
+  },
+  "0.33.0": {
+    "date": "2026-06-12",
+    "changed": [
+      "StaticFiles body cache is now opt-in (default cache=False). Seven framework defaults reset to RFC 7540 / Linux kernel baselines: BB_SOCKET_BACKLOG 4096→128, BB_SOCKET_SNDBUF/RCVBUF 262144→0, BB_SOCKET_REUSEPORT True→False, BB_TCP_USER_TIMEOUT_MS 60000→0, BB_H2_INITIAL_WINDOW_SIZE 1048576→65535, BB_H2_CONNECTION_WINDOW_SIZE 4194304→65535."
+    ]
+  },
+  "0.32.0": {
+    "date": "2026-06-11",
+    "added": [
+      "blackbull.testing.TestClient — synchronous façade over httpx.AsyncClient + httpx.ASGITransport with dedicated background-thread event loop. WebSocketTestSession, WebSocketDisconnect.",
+      "__slots__ on per-stream / per-frame hot-path classes: Stream, BaseSender, HTTP1Sender, HTTP2Sender, WebSocketSender."
+    ],
+    "fixed": [
+      "BlackBull.__call__ is now correctly ASGI 3.0 compliant under external transports. Apps now run unchanged under uvicorn / hypercorn / granian."
+    ]
+  },
+  "0.31.3": {
+    "date": "2026-06-10",
+    "changed": [
+      "StaticFiles registers common web-asset MIME types at module import: font/woff, font/woff2, image/webp, image/avif, application/wasm. Compression middleware adds font types to skip list."
+    ]
+  },
+  "0.31.2": {
+    "date": "2026-06-10",
+    "fixed": [
+      "README documentation links on PyPI now resolve — changed from GitHub-relative paths to absolute https://github.com/TOKUJI/BlackBull/blob/master/ URLs."
+    ]
+  },
+  "0.31.1": {
+    "date": "2026-06-10",
+    "changed": [
+      "Static cache documents stat()-based invalidation, not permanent staleness. Static cache hits avoid mimetypes.guess_type() regex on every request — mime computed once at cache-store. Static middleware hot path uses os.path instead of pathlib.Path."
+    ]
+  },
+  "0.31.0": {
+    "date": "2026-06-04",
+    "added": [
+      "scope['extensions']['http.response.priority'] — RFC 9218 priority hint at conventional ASGI scope-extensions location.",
+      "scope['extensions']['http.response.http2_stream'] — BlackBull HTTP/2 stream-info extension: stream_id, send_window_remaining, connection_send_window_remaining."
+    ]
+  },
+  "0.30.0": {
+    "date": "2026-06-04",
+    "added": [
+      "http.response.pathsend ASGI extension — zero-copy static-file serving for cleartext HTTP/1.1 via loop.sendfile. 23× throughput improvement on 16 MiB files (25→569 r/s)."
+    ]
+  },
+  "0.29.0": {
+    "date": "2026-06-04",
+    "added": [
+      "BB_WRITE_TIMEOUT (default 30 s) — bounds time spent in StreamWriter.drain() waiting for kernel send buffer to flush. Defends against slow-read slowloris."
+    ],
+    "changed": [
+      "BB_KEEP_ALIVE_TIMEOUT default lowered from 60 to 5 seconds. BB_MAX_CONNECTIONS default raised from 0 (disabled) to 1024 per worker with graceful 503 + Retry-After response."
+    ]
+  },
+  "0.28.1": {
+    "date": "2026-06-02",
+    "added": [
+      "Precompressed-variant serving in StaticFiles. When client offers Accept-Encoding: br | gzip | zstd and a .br/.gz/.zst sibling exists on disk, serves that file directly.",
+      "Compression executor-queue backpressure. New BB_COMPRESSION_MAX_INFLIGHT (default cpu_count*2). When at cap, additional responses served uncompressed."
+    ],
+    "fixed": [
+      "Compression middleware emitted duplicate http.response.start events when upstream response was already encoded. Under HTTP/1.1 keep-alive this caused ~500× throughput drop."
+    ]
+  },
+  "0.28.0": {
+    "date": "2026-05-31",
+    "added": [
+      "KNOWN_LIMITATIONS.md — single consolidated doc. bench/soak/ — soak harness (1-hour wrk + tracemalloc). HttpArena comparison harness on EC2 c7i.xlarge."
+    ],
+    "changed": [
+      "StaticFiles middleware now caches small files in memory. mtime+size-keyed LRU cache (default ≤ 4 MiB per file, 256 entries). Default error handler is environment-aware (development → full traceback; production → terse)."
+    ]
+  },
+  "0.27.1": {
+    "date": "2026-05-31",
+    "fixed": [
+      "beartype promoted from [validation] optional extra to hard dependency — cold pip install blackbull followed by running any app crashed with ModuleNotFoundError."
+    ]
+  },
+  "0.27.0": {
+    "date": "2026-05-30",
+    "added": [
+      "Cascade-multiplier rule pinned in bench/CHARACTERIZATION.md as sprint-gating mechanism. bench/httparena/ scaffold for HttpArena Docker container."
+    ],
+    "fixed": [
+      "HTTP/2 query-string scope — :path pseudo-header was copied verbatim into scope['path'] including ?query, and scope['query_string'] was str instead of bytes. Compression middleware Content-Length — upstream Content-Length now stripped and post-compression length written."
+    ]
+  },
+  "0.26.0": {
+    "date": "2026-05-30",
+    "changed": [
+      "Deadline subsystem rework. Per-arm loop.call_later replaced by per-process tick scanner. Per-call cost: 1.69 µs → 350 ns (−79.3%). ConnectionDeadline.guard() is now class-based, saving per-call generator-frame allocation. EC2: B1 +17.4%, B2 +17.1%, B3 +18.3%."
+    ]
+  },
+  "0.25.0": {
+    "date": "2026-05-29",
+    "changed": [
+      "HTTP/1 parser hot-path. URL splitter: urllib.parse.urlparse + re.sub → three bytes.partition calls + slice (−91.6%). Header-loop regex validators: per-byte any(...) → compiled-regex search() (−77.1%). EC2: B1 +13.6% / +15.3%."
+    ]
+  },
+  "0.24.0": {
+    "date": "2026-05-28",
+    "changed": [
+      "Methodology hardening: RUNS_WRK=3 with MAD noise column, DURATION 30→60 s, WARMUP=15 s. Lane E added — connection churn (Connection: close per request) exposing accept-loop + TLS-handshake cost."
+    ]
+  },
+  "0.23.0": {
+    "date": "2026-05-25",
+    "changed": [
+      "asyncio.timeouts.* cost removed from per-request hot path. Replaced per-phase async with asyncio.timeout(d) context managers with single rescheduled loop.call_later() TimerHandle per connection. B1 plaintext +6.5%."
+    ]
+  },
+  "0.22.0": {
+    "date": "2026-05-23",
+    "changed": [
+      "Framework / server separation. Headers + HeaderList moved to top-level blackbull/headers.py. ASGIEvent folded into blackbull/asgi.py. import blackbull no longer transitively loads the server stack. BlackBull.run() is now synchronous."
+    ]
+  },
+  "pre-0.22": {
+    "date": "2026-05-22",
+    "added": [
+      "Phase 6 actor-model refactor. Level B event API — @app.on(event) for fire-and-forget, @app.intercept(event) for synchronous interception with call_next chaining. Nine built-in events.",
+      "Actor model: Message dataclass base, Actor base class with queue-based inbox. HTTP1Actor, HTTP2Actor, WebSocketActor, ConnectionActor — protocol actors as the sole runtime path.",
+      "blackbull.client/ — async client package: HTTP1Client, HTTP2Client, WebSocketClient, Client (ALPN-dispatching)."
+    ],
+    "changed": [
+      "Middleware re-implemented as intercept sugar. app.use(mw), middlewares=[...], @app.on_startup, @app.on_shutdown, @app.on_error(status) all lower to @app.intercept registrations."
+    ]
+  }
+}
