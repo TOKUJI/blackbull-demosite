@@ -21,7 +21,7 @@ import socket
 import sys
 import time
 from collections import deque
-from http import HTTPMethod, HTTPStatus
+from http import HTTPStatus
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -111,7 +111,7 @@ def create_app() -> BlackBull:
             'Allow: /\n'
             f'Sitemap: https://{host}/sitemap.xml\n'
         )
-        return Response(body.encode(), content_type='text/plain')
+        return Response(body, content_type='text/plain')
 
     # -- Routes -----------------------------------------------------------
 
@@ -127,7 +127,7 @@ def create_app() -> BlackBull:
             routes=routes,
             stats=_build_stats_dict(),
         )
-        return Response(html.encode(), content_type='text/html; charset=utf-8')
+        return Response(html)
 
     @app.route(path='/health')
     async def health():
@@ -176,7 +176,7 @@ def create_app() -> BlackBull:
 
     @app.route(
         path='/api/methods',
-        methods=[HTTPMethod.GET, HTTPMethod.POST, HTTPMethod.PUT, HTTPMethod.DELETE],
+        methods=['GET', 'POST', 'PUT', 'DELETE'],
     )
     async def methods_demo(conn: Connection):
         """Method-based routing demo — one path, four HTTP methods."""
@@ -191,7 +191,7 @@ def create_app() -> BlackBull:
         }
 
     # -- QUERY method demo (RFC 9110) ------------------------------------
-    @app.route(path='/api/changelog', methods=[QUERY])
+    @app.route(path='/api/changelog', methods=QUERY)
     async def query_changelog(conn: Connection):
         """QUERY method demo — search BlackBull changelog by version.
 
@@ -212,9 +212,7 @@ def create_app() -> BlackBull:
         """Serve sitemap.xml — template with dynamic base URL."""
         host = _get_host(conn)
         body = _SITEMAP_TEMPLATE.replace('{base}', f'https://{host}')
-        return Response(
-            body.encode(), content_type='application/xml; charset=utf-8',
-        )
+        return Response(body, content_type='application/xml; charset=utf-8')
 
     # -- HTCPCP (RFC 2324 + RFC 7168) ------------------------------------
     HtcpcpExtension(app=app, pot_type='coffee')                     # /pot
@@ -229,7 +227,7 @@ def create_app() -> BlackBull:
     )
 
     # -- Error handlers ---------------------------------------------------
-    @app.on_error(HTTPStatus.NOT_FOUND)
+    @app.on_error(404)
     async def _handle_404(scope, receive, send):
         await send(JSONResponse({'error': 'not found'}, status=HTTPStatus.NOT_FOUND))
 
@@ -264,16 +262,13 @@ def _build_stats_dict() -> dict[str, Any]:
 
 
 def _extract_user_agent(conn: Connection) -> str:
-    """Extract User-Agent header from a Connection (first 60 chars).
+    """Extract the User-Agent header (first 60 chars).
 
-    Since BlackBull v0.60.0 the ``request_completed`` event detail always
-    carries a native :class:`Connection` — the ASGI scope dict compat lane
-    is no longer needed.
+    ``Connection.headers`` is a :class:`blackbull.Headers` whose lookups are
+    case-insensitive, so the raw ``user-agent`` bytes come back whatever the
+    client sent on the wire.
     """
-    for name, value in conn.headers:
-        if name.decode('latin-1').lower() == 'user-agent':
-            return value.decode('utf-8', errors='replace')[:60]
-    return ''
+    return conn.headers.get(b'user-agent', b'').decode('utf-8', errors='replace')[:60]
 
 def _http_version_label(http_version: str) -> str:
     """Convert ASGI ``http_version`` to a human-readable label."""
@@ -299,13 +294,10 @@ def _get_host(conn: Connection) -> str:
     Prefers ``X-Forwarded-Host`` (set by reverse proxy) over ``Host``
     (which carries the internal backend address behind a proxy).
     """
-    host = ''
-    for k, v in conn.headers:
-        key = k.decode('latin-1').lower()
-        if key == 'x-forwarded-host':
-            return v.decode('latin-1', errors='replace')
-        if key == 'host':
-            host = v.decode('latin-1', errors='replace')
+    forwarded = conn.headers.get(b'x-forwarded-host', b'')
+    if forwarded:
+        return forwarded.decode('latin-1', errors='replace')
+    host = conn.headers.get(b'host', b'').decode('latin-1', errors='replace')
     return host or 'localhost'
 
 
@@ -328,16 +320,16 @@ def _get_route_list(app: BlackBull) -> list[dict[str, str]]:
         (HtcpcpMethod.BREW, '/pot'):     'HTCPCP BREW',
         (HtcpcpMethod.PROPFIND, '/pot'): 'HTCPCP PROPFIND',
         (HtcpcpMethod.WHEN, '/pot'):     'HTCPCP WHEN',
-        (HTTPMethod.POST, '/pot'):       'HTCPCP BREW (POST)',
-        (HTTPMethod.GET, '/pot'):        'HTCPCP GET',
-        (HTTPMethod.GET, '/pot/when'):   'HTCPCP when',
+        ('POST', '/pot'):       'HTCPCP BREW (POST)',
+        ('GET', '/pot'):        'HTCPCP GET',
+        ('GET', '/pot/when'):   'HTCPCP when',
         # /teapot — tea (RFC 7168)
         (HtcpcpMethod.BREW, '/teapot'):     'HTCPCP-TEA BREW',
         (HtcpcpMethod.PROPFIND, '/teapot'): 'HTCPCP-TEA PROPFIND',
         (HtcpcpMethod.WHEN, '/teapot'):     'HTCPCP-TEA WHEN',
-        (HTTPMethod.POST, '/teapot'):       'HTCPCP-TEA BREW (POST)',
-        (HTTPMethod.GET, '/teapot'):        'HTCPCP-TEA GET',
-        (HTTPMethod.GET, '/teapot/when'):   'HTCPCP-TEA when',
+        ('POST', '/teapot'):       'HTCPCP-TEA BREW (POST)',
+        ('GET', '/teapot'):        'HTCPCP-TEA GET',
+        ('GET', '/teapot/when'):   'HTCPCP-TEA when',
     }
     for r in routes:
         note = _query_notes.get((r['method'], r['path'])) or \
