@@ -126,11 +126,8 @@ def render_dashboard(
         elif method == 'QUERY':
             body = _query_bodies.get(path, '{}')
             js = (
-                f"fetch({path!r},{{method:'QUERY'"
-                f",headers:{{'Content-Type':'application/json'}}"
-                f",body:{json.dumps(body)}"
-                + "}).then(r=>r.text()).then(t=>{document.getElementById('bb-resp').textContent=t;refreshStats()})"
-                + ".catch(e=>{document.getElementById('bb-resp').textContent='Error: '+e})"
+                f"bbCall('QUERY',{path!r},"
+                f"{{'Content-Type':'application/json'}},{json.dumps(body)})"
             )
             path_html = f'<span class="route-link" onclick="{_attr_escape(js)}">{path}</span>'
         else:
@@ -140,10 +137,8 @@ def render_dashboard(
                 extra_hdr = _htcpcp_headers.get(method, '')
             hdr_obj = f'{{{extra_hdr}}}' if extra_hdr else '{}'
             js = (
-                f"fetch({path!r},{{method:{method!r}"
-                + (f",headers:{hdr_obj}" if extra_hdr else "")
-                + "}).then(r=>r.text()).then(t=>{document.getElementById('bb-resp').textContent=t;refreshStats()})"
-                + ".catch(e=>{document.getElementById('bb-resp').textContent='Error: '+e})"
+                f"bbCall({method!r},{path!r},{hdr_obj})" if extra_hdr
+                else f"bbCall({method!r},{path!r})"
             )
             path_html = f'<span class="route-link" onclick="{_attr_escape(js)}">{path}</span>'
         route_rows.append(
@@ -251,6 +246,7 @@ function fmtBytes(n){{
   if(n<1048576)return (n/1024).toFixed(1)+'K';
   return (n/1048576).toFixed(1)+'M';
 }}
+function bbCall(m,p,h,b){{fetch(p,{{method:m,headers:h||{{}},body:b}}).then(r=>r.text()).then(t=>{{document.getElementById('bb-resp').textContent=t;refreshStats()}}).catch(e=>{{document.getElementById('bb-resp').textContent='Error: '+e}});}}
 function refreshStats(){{
   fetch('/stats.json').then(r=>r.json()).then(d=>{{
     document.getElementById('bb-total').textContent = d.total_requests.toLocaleString();
