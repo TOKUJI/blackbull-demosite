@@ -16,6 +16,7 @@ TLS strategy:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import socket
 import sys
@@ -54,6 +55,12 @@ with open(_CHANGELOG_PATH) as _f:
 _SITEMAP_PATH = Path(__file__).parent / 'sitemap.xml'
 with open(_SITEMAP_PATH) as _f:
     _SITEMAP_TEMPLATE: str = _f.read()
+
+# Cache lifetimes: robots.txt is a permission file, so shared caches must
+# revalidate it hourly for block-list changes to propagate promptly;
+# sitemap.xml only changes with a deploy and may be held for a full day.
+_ROBOTS_MAX_AGE = 3600
+_SITEMAP_MAX_AGE = 86400
 
 
 # ===================================================================
@@ -100,7 +107,7 @@ def create_app() -> BlackBull:
         return RedirectResponse('/static/favicon.svg', status=HTTPStatus.MOVED_PERMANENTLY)
 
     # -- robots.txt -------------------------------------------------------
-    @app.route(path='/robots.txt')
+    @app.route(path='/robots.txt', methods=['GET', 'HEAD'])
     async def robots_txt(conn: Connection):
         """Serve robots.txt with Sitemap directive."""
         host = _get_host(conn)
@@ -111,7 +118,7 @@ def create_app() -> BlackBull:
             'Allow: /\n'
             f'Sitemap: https://{host}/sitemap.xml\n'
         )
-        return Response(body, content_type='text/plain')
+        return _cacheable(conn, body, 'text/plain', _ROBOTS_MAX_AGE)
 
     # -- Routes -----------------------------------------------------------
 
@@ -207,12 +214,12 @@ def create_app() -> BlackBull:
             return {'available_versions': sorted(_CHANGELOG.keys(), reverse=True)}
 
     # -- Sitemap -----------------------------------------------------------
-    @app.route(path='/sitemap.xml')
+    @app.route(path='/sitemap.xml', methods=['GET', 'HEAD'])
     async def sitemap_xml(conn: Connection):
         """Serve sitemap.xml — template with dynamic base URL."""
         host = _get_host(conn)
         body = _SITEMAP_TEMPLATE.replace('{base}', f'https://{host}')
-        return Response(body, content_type='application/xml; charset=utf-8')
+        return _cacheable(conn, body, 'application/xml; charset=utf-8', _SITEMAP_MAX_AGE)
 
     # -- HTCPCP (RFC 2324 + RFC 7168) ------------------------------------
     HtcpcpExtension(app=app, pot_type='coffee')                     # /pot
@@ -269,6 +276,39 @@ def _extract_user_agent(conn: Connection) -> str:
     client sent on the wire.
     """
     return conn.headers.get(b'user-agent', b'').decode('utf-8', errors='replace')[:60]
+
+
+def _cacheable(conn: Connection, body: str, content_type: str, max_age: int) -> Response:
+    """Serve a public cacheable resource with RFC 9110 conditional GET.
+
+    The weak validator hashes the rendered body, so per-Host variants
+    (robots/sitemap embed the public hostname) get distinct ETags.  The
+    body also varies with the forwarded host header, so shared caches
+    must key stored variants on it via ``Vary``.
+    """
+    etag = 'W/"%s"' % hashlib.sha256(body.encode('utf-8')).hexdigest()[:16]
+    headers = {'ETag': etag,
+               'Cache-Control': f'public, max-age={max_age}',
+               'Vary': 'X-Forwarded-Host'}
+    if _etag_matches(conn.headers.get(b'if-none-match', b''), etag):
+        return Response(b'', status=HTTPStatus.NOT_MODIFIED,
+                        content_type=content_type, headers=headers)
+    return Response(body, content_type=content_type, headers=headers)
+
+
+def _etag_matches(field: bytes, etag: str) -> bool:
+    """RFC 9110 §13.1.2: ``If-None-Match`` uses weak comparison.
+
+    ``W/`` is ignored on both sides, candidates arrive as a comma
+    separated list, and ``*`` matches any current representation.
+    """
+    header = field.decode('latin-1').strip()
+    if header == '*':
+        return True
+    target = etag.removeprefix('W/')
+    return any(token.strip().removeprefix('W/') == target
+               for token in header.split(','))
+
 
 def _http_version_label(http_version: str) -> str:
     """Convert ASGI ``http_version`` to a human-readable label."""

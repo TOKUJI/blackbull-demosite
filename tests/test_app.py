@@ -256,6 +256,33 @@ class TestSitemapXml:
         text = response.text
         assert 'https://' in text
 
+    def test_sitemap_cache_control_allows_daily_cache(self, client):
+        """Sitemap changes ship with deploys, so caches may hold it for a day."""
+        response = client.get('/sitemap.xml')
+        assert response.headers.get('cache-control') == 'public, max-age=86400'
+
+    def test_sitemap_etag_enables_conditional_get(self, client):
+        """A matching If-None-Match must return 304 with no body."""
+        first = client.get('/sitemap.xml')
+        etag = first.headers.get('etag', '')
+        assert etag.startswith('W/"')
+        second = client.get('/sitemap.xml', headers={'If-None-Match': etag})
+        assert second.status_code == 304
+        assert second.content == b''
+        assert second.headers.get('etag') == etag
+
+    def test_sitemap_vary_names_forwarded_host(self, client):
+        """Shared caches must key host-dependent variants on X-Forwarded-Host."""
+        response = client.get('/sitemap.xml')
+        assert 'x-forwarded-host' in response.headers.get('vary', '').lower()
+
+    def test_sitemap_head_carries_validators(self, client):
+        response = client.head('/sitemap.xml')
+        assert response.status_code == 200
+        assert response.content == b''
+        assert response.headers.get('etag', '').startswith('W/"')
+        assert response.headers.get('cache-control') == 'public, max-age=86400'
+
 
 class TestRobotsTxt:
     """Tests for GET /robots.txt."""
@@ -267,3 +294,70 @@ class TestRobotsTxt:
     def test_robots_disallows_api(self, client):
         response = client.get('/robots.txt')
         assert 'Disallow: /api/' in response.text
+
+    def test_robots_cache_control_short_ttl(self, client):
+        """robots.txt is a permission file: caches revalidate at least hourly."""
+        response = client.get('/robots.txt')
+        assert response.headers.get('cache-control') == 'public, max-age=3600'
+
+    def test_robots_conditional_get_returns_304(self, client):
+        first = client.get('/robots.txt')
+        etag = first.headers.get('etag', '')
+        assert etag.startswith('W/"')
+        second = client.get('/robots.txt', headers={'If-None-Match': etag})
+        assert second.status_code == 304
+        assert second.content == b''
+        assert second.headers.get('etag') == etag
+
+    def test_robots_conditional_get_accepts_etag_list(self, client):
+        """If-None-Match carries a comma-separated candidate list (RFC 9110)."""
+        first = client.get('/robots.txt')
+        etag = first.headers.get('etag', '')
+        second = client.get('/robots.txt', headers={'If-None-Match': f'W/"other", {etag}'})
+        assert second.status_code == 304
+
+    def test_robots_stale_validator_returns_full_body(self, client):
+        response = client.get('/robots.txt', headers={'If-None-Match': 'W/"stale"'})
+        assert response.status_code == 200
+        assert 'User-agent: *' in response.text
+
+    def test_etag_tracks_content(self, client):
+        """The ETag must change when the body changes.
+
+        robots.txt embeds the public hostname, so a different
+        X-Forwarded-Host yields different content and a different validator.
+        """
+        a = client.get('/robots.txt', headers={'X-Forwarded-Host': 'a.example'})
+        b = client.get('/robots.txt', headers={'X-Forwarded-Host': 'b.example'})
+        assert a.status_code == b.status_code == 200
+        assert a.headers.get('etag') != b.headers.get('etag')
+
+    def test_robots_vary_names_forwarded_host(self, client):
+        """Shared caches must key host-dependent variants on X-Forwarded-Host."""
+        response = client.get('/robots.txt')
+        assert 'x-forwarded-host' in response.headers.get('vary', '').lower()
+
+    def test_robots_strong_form_validator_matches_weakly(self, client):
+        """RFC 9110 weak comparison: W/ is ignored on either side."""
+        first = client.get('/robots.txt')
+        opaque = first.headers.get('etag', '').removeprefix('W/')
+        second = client.get('/robots.txt', headers={'If-None-Match': opaque})
+        assert second.status_code == 304
+
+    def test_robots_star_matches_any_representation(self, client):
+        response = client.get('/robots.txt', headers={'If-None-Match': '*'})
+        assert response.status_code == 304
+        assert response.content == b''
+
+    def test_robots_head_carries_validators(self, client):
+        response = client.head('/robots.txt')
+        assert response.status_code == 200
+        assert response.content == b''
+        assert response.headers.get('etag', '').startswith('W/"')
+        assert response.headers.get('cache-control') == 'public, max-age=3600'
+
+    def test_robots_head_honors_if_none_match(self, client):
+        first = client.head('/robots.txt')
+        etag = first.headers.get('etag', '')
+        second = client.head('/robots.txt', headers={'If-None-Match': etag})
+        assert second.status_code == 304

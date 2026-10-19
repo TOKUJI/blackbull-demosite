@@ -28,6 +28,7 @@ dependencies** — no uvicorn, no gunicorn, no hypercorn.
 | Request header echo | `GET /api/headers` |
 | Method-based routing | `GET/POST/PUT/DELETE /api/methods` |
 | Built-in OpenAPI + Swagger UI | `GET /openapi.json`, `GET /docs` |
+| HTTP cache validators (ETag → `304`) | `GET /robots.txt`, `GET /sitemap.xml` |
 | HTCPCP (RFC 2324 Coffee Pot) | `POST /pot`, `GET /pot`, `GET /pot/when` |
 
 ## Running Locally
