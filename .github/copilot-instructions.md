@@ -1,14 +1,15 @@
 # BlackBull Demo — Copilot Instructions
 
 This file provides always-on coding constraints and conventions for the
-`blackbull-demo` repository. Copilot MUST follow these rules for every
+`blackbull-demosite` repository. Copilot MUST follow these rules for every
 code generation, edit, or suggestion in this project.
 
 ---
 
 ## Core Architecture
 
-- **Framework:** BlackBull ASGI (imported as `blackbull`)
+- **Framework:** BlackBull (imported as `blackbull`) — native typed
+  `Connection` end to end, ASGI 3.0 as an interop boundary.
 - **Server:** BlackBull's built-in server ONLY (`app.run()`). NEVER import or
   suggest `uvicorn`, `hypercorn`, `granian`, `gunicorn`, or any other ASGI server.
 - **Production deployment:** Alwaysdata **Services** (24/7 supervisor) on
@@ -18,7 +19,7 @@ code generation, edit, or suggestion in this project.
 - **Application entry point:** `app.py` — single file, target ≤300 lines.
 - **Template strings:** `templates.py` — inline HTML as Python string
   constants. NEVER import `jinja2` or any template engine.
-- **Statistics:** `stats.py` — `collections.deque` ring buffer.
+- **Statistics:** in-memory `collections.deque` ring buffer in `app.py`.
   NEVER import any database driver.
 
 ---
@@ -92,6 +93,10 @@ code generation, edit, or suggestion in this project.
 | `/api/info` | GET | Auto dict→JSONResponse demo |
 | `/api/headers` | GET | Request header echo (httpbin-style) |
 | `/api/methods` | GET/POST/PUT/DELETE | Method-based routing demo |
+| `/api/changelog` | QUERY | HTTP QUERY method (RFC 10008) demo |
+| `/robots.txt` | GET/HEAD | Robots policy + Sitemap directive (cache validators) |
+| `/sitemap.xml` | GET/HEAD | Sitemap template with dynamic base URL (cache validators) |
+| `/favicon.ico` | GET | Redirect to `/static/favicon.svg` |
 | `/openapi.json` | GET | Auto-generated OpenAPI 3.1 spec |
 | `/docs` | GET | Swagger UI |
 | `/pot` | POST/GET | HTCPCP (RFC 2324) coffee pot |
@@ -114,7 +119,7 @@ code generation, edit, or suggestion in this project.
 app.enable_openapi(
     title='BlackBull Demo',
     version=blackbull.__version__,
-    description='Live demo of the BlackBull ASGI framework.',
+    description='Live demo of the BlackBull web framework (native Connection, ASGI 3.0 interop).',
 )
 ```
 
@@ -126,7 +131,7 @@ No additional dependencies — this is built into BlackBull.
 
 - Framework: `pytest` + `pytest-asyncio`
 - `asyncio_mode = "auto"` (set in `pyproject.toml`)
-- Test files: `tests/test_app.py` (integration), `tests/test_stats.py` (unit)
+- Test files: `tests/test_app.py` (integration)
 - Fixtures in `tests/conftest.py`
 
 ---
@@ -140,6 +145,6 @@ No additional dependencies — this is built into BlackBull.
 - **Pull Requests:** `feature/*` → `develop`, Squash & Merge only.
 - **Commit messages:** Conventional Commits format
   (`feat:`, `fix:`, `docs:`, `chore:`, `test:`).
-- **CI:** `.github/workflows/health-check.yml` runs hourly health check
-  against the live demo URL.
+- **CI:** `.github/workflows/health-check.yml` checks the live demo `/health`
+  daily (00:00 UTC) and on pushes to `main`.
 - **Deploy:** `scripts/deploy.sh` handles SSH-based deployment to Alwaysdata.
