@@ -1,4 +1,4 @@
-"""BlackBull Demo — Live demonstration site for the BlackBull ASGI framework.
+"""BlackBull Demo — Live demonstration site for the BlackBull web framework.
 
 Single-file application entry point (target ≤300 lines).
 Uses BlackBull's built-in server — no uvicorn, gunicorn, or hypercorn.
@@ -230,7 +230,7 @@ def create_app() -> BlackBull:
     app.enable_openapi(
         title='BlackBull Demo',
         version=blackbull.__version__,
-        description='Live demo of the BlackBull ASGI framework.',
+        description='Live demo of the BlackBull web framework (native Connection, ASGI 3.0 interop).',
     )
 
     # -- Error handlers ---------------------------------------------------
